@@ -275,7 +275,7 @@ void loop()
     forward(0.5);
     break;
   case TURN_4:
-    forward(90);
+    turn(90);
     break;
   case FW_5:
     forward(1);
