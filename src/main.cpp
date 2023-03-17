@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <PID_v1.h>
+#define MAX_PID_VALUE 250
 
 const byte encoder0pinA = 10; // A pin -> the interrupt pin 0
 const byte encoder0pinB = A0; // B pin -> the digital pin 3
@@ -31,8 +32,8 @@ double motorPowerA = 0; // Power supplied to the motor PWM value.
 double setpointA = 0;
 double motorPowerB = 0; // Power supplied to the motor PWM value.
 double setpointB = 0;
-double KpA = 4, KiA = 0.08, KdA = 0;
-double KpB = 4, KiB = 0.08, KdB = 0;
+double KpA = 3, KiA = 0.12, KdA = 0;
+double KpB = 3, KiB = 0.105, KdB = 0;
 
 double afgelegdeWegTicks = 0;
 PID pidA(&wheelASpeed, &motorPowerA, &setpointA, KpA, KiA, KdA, DIRECT);
@@ -44,13 +45,19 @@ enum instruction
   TURN_2,
   FW_3,
   TURN_4,
-  FW_5,
-  TURN_6,
-  FW_7,
   STOP
 };
 
 instruction state = FW_1;
+
+void resetParametersPID(){
+pidA.SetOutputLimits(0.0, 1.0);  // Forces minimum up to 0.0
+pidA.SetOutputLimits(-1.0, 0.0);  // Forces maximum down to 0.0
+pidA.SetOutputLimits(-MAX_PID_VALUE, MAX_PID_VALUE);
+pidB.SetOutputLimits(0.0, 1.0);  // Forces minimum up to 0.0
+pidB.SetOutputLimits(-1.0, 0.0);  // Forces maximum down to 0.0
+pidB.SetOutputLimits(-MAX_PID_VALUE, MAX_PID_VALUE);
+}
 
 void forward(double distance)
 { // distance in meter
@@ -59,13 +66,13 @@ void forward(double distance)
   {
     if (distance > 0)
     {
-      setpointA = 80;
-      setpointB = 80;
+      setpointA = 60;
+      setpointB = 60;
     }
     else
     {
-      setpointA = -80;
-      setpointB = -80;
+      setpointA = -60;
+      setpointB = -60;
     }
     if (currentMillis - previousMillisForward >= 50)
     { // per 10ms
@@ -79,6 +86,7 @@ void forward(double distance)
     afgelegdeWegTicks = 0;
     setpointA = 0;
     setpointB = 0;
+    resetParametersPID();
     state = static_cast<instruction>(state + 1);
   }
 }
@@ -88,12 +96,12 @@ void turn(double angle)
   double ticksPerOmw = 1941;
   double wheelDiam = 65; // mm
   double wheelCirc = wheelDiam * PI;
-  double pivotDiam = 190; // mm
+  double pivotDiam = 195; // mm
   double pivotCirc = pivotDiam * PI;
-
   double arcLength = abs(angle) / 360 * pivotCirc; // mm
   double numRev = arcLength / wheelCirc;
   double numTicks = numRev * ticksPerOmw;
+
   if (afgelegdeWegTicks < numTicks)
   {
     if (angle > 0)
@@ -108,7 +116,7 @@ void turn(double angle)
     }
     unsigned long currentMillis = millis();
     if (currentMillis - previousMillisForward >= 50)
-    { // per 10ms
+    {
       previousMillisForward = currentMillis;
       afgelegdeWegTicks += abs(wheelASpeed);
       // Serial.println(afgelegdeWegTicks);
@@ -119,6 +127,7 @@ void turn(double angle)
     afgelegdeWegTicks = 0;
     setpointA = 0;
     setpointB = 0;
+    resetParametersPID();
     state = static_cast<instruction>(state + 1);
   }
 }
@@ -216,10 +225,10 @@ void setup()
   pinMode(in4, OUTPUT);
   pidA.SetMode(AUTOMATIC); // PID is set to automatic mode
   pidA.SetSampleTime(50);  // Set PID sampling frequency is 50ms
-  pidA.SetOutputLimits(-240, 240);
+  pidA.SetOutputLimits(-MAX_PID_VALUE, MAX_PID_VALUE);
   pidB.SetMode(AUTOMATIC); // PID is set to automatic mode
   pidB.SetSampleTime(50);  // Set PID sampling frequency is 50ms
-  pidB.SetOutputLimits(-240, 240);
+  pidB.SetOutputLimits(-MAX_PID_VALUE, MAX_PID_VALUE);
   Serial.begin(9600);
   EncoderInit(); // Initialize the module
 }
@@ -227,8 +236,8 @@ void setup()
 void loop()
 {
   calculateSpeed();
-  motorPowerA = constrain(motorPowerA, -240, 240);
-  motorPowerB = constrain(motorPowerB, -240, 240);
+  motorPowerA = constrain(motorPowerA, -MAX_PID_VALUE, MAX_PID_VALUE);
+  motorPowerB = constrain(motorPowerB, -MAX_PID_VALUE, MAX_PID_VALUE);
 
   pidA.Compute();
   pidB.Compute();
@@ -256,35 +265,25 @@ void loop()
     digitalWrite(in4, HIGH);
   }
   analogWrite(enB, abs(motorPowerB));
-
+  
   Serial.print(motorPowerA);
   Serial.print(" , ");
-  Serial.print(motorPowerB);
-  Serial.print(" , ");
-  Serial.println(afgelegdeWegTicks);
+  Serial.println(motorPowerB);
+
 
   switch (state)
   {
   case FW_1:
-    forward(1);
+    forward(0.5);
     break;
   case TURN_2:
-    turn(90);
+    turn(180);
     break;
   case FW_3:
     forward(0.5);
     break;
   case TURN_4:
-    turn(90);
-    break;
-  case FW_5:
-    forward(1);
-    break;
-  case TURN_6:
-    turn(90);
-    break;    
-  case FW_7:
-    forward(0.5);
+    turn(-180);
     break;
   case STOP:
     break;
