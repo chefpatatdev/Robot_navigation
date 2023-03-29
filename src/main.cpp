@@ -5,8 +5,8 @@
 /*Encoder pins*/
 #define encoder0pinA 10
 #define encoder0pinB A0
-#define encoder1pinA 11 
-#define encoder1pinB A1 
+#define encoder1pinA 11
+#define encoder1pinB A1
 /*Motor pins*/
 #define enA 7
 #define in1 9
@@ -16,13 +16,11 @@
 #define in3 4
 #define in4 5
 
-
 byte encoder0PinALast = 0;
 int wheelBTicks = 0; // the number of the pulses
 int wheelBTicksPrev = 0;
 double wheelBSpeed = 0;
 boolean directionB; // the rotation direction
-
 
 byte encoder1PinALast = 0;
 int wheelATicks = 0; // the number of the pulses
@@ -31,8 +29,6 @@ double wheelASpeed = 0;
 boolean directionA; // the rotation direction
 unsigned long previousMillis = 0;
 unsigned long previousMillisForward = 0;
-
-
 
 double motorPowerA = 0; // Power supplied to the motor PWM value.
 double setpointA = 0;
@@ -58,28 +54,32 @@ enum instruction
 };
 instruction instructionState = FW_1;
 
-enum robotStates{
+enum robotStates
+{
   IDLE,
   NAVIGATING,
   HALT,
 };
 
-void incrementState(){
-      instructionState = static_cast<instruction>(instructionState + 1);
+void incrementState()
+{
+  instructionState = static_cast<instruction>(instructionState + 1);
 }
 
-void resetSetPoints(){
-    setpointA = 0;
-    setpointB = 0;
+void resetSetPoints()
+{
+  setpointA = 0;
+  setpointB = 0;
 }
 
-void resetParametersPID(){
-pidA.SetOutputLimits(0.0, 1.0);  // Forces minimum up to 0.0
-pidA.SetOutputLimits(-1.0, 0.0);  // Forces maximum down to 0.0
-pidA.SetOutputLimits(-MAX_PID_VALUE, MAX_PID_VALUE);
-pidB.SetOutputLimits(0.0, 1.0);  // Forces minimum up to 0.0
-pidB.SetOutputLimits(-1.0, 0.0);  // Forces maximum down to 0.0
-pidB.SetOutputLimits(-MAX_PID_VALUE, MAX_PID_VALUE);
+void resetParametersPID()
+{
+  pidA.SetOutputLimits(0.0, 1.0);  // Forces minimum up to 0.0
+  pidA.SetOutputLimits(-1.0, 0.0); // Forces maximum down to 0.0
+  pidA.SetOutputLimits(-MAX_PID_VALUE, MAX_PID_VALUE);
+  pidB.SetOutputLimits(0.0, 1.0);  // Forces minimum up to 0.0
+  pidB.SetOutputLimits(-1.0, 0.0); // Forces maximum down to 0.0
+  pidB.SetOutputLimits(-MAX_PID_VALUE, MAX_PID_VALUE);
 }
 
 void forward(double distance)
@@ -157,7 +157,7 @@ void calculateSpeed()
   unsigned long currentMillis = millis();
 
   if (currentMillis - previousMillis >= 50)
-  { // per 10ms
+  {
     previousMillis = currentMillis;
     wheelASpeed = (double)(wheelATicks - wheelATicksPrev);
     wheelBSpeed = (double)(wheelBTicks - wheelBTicksPrev);
@@ -253,8 +253,6 @@ void setup()
   EncoderInit(); // Initialize the module
 }
 
-
-
 void loop()
 {
   calculateSpeed();
@@ -287,11 +285,10 @@ void loop()
     digitalWrite(in4, HIGH);
   }
   analogWrite(enB, abs(motorPowerB));
-  
+
   Serial.print(motorPowerA);
   Serial.print(" , ");
   Serial.println(motorPowerB);
-
 
   switch (instructionState)
   {
@@ -312,7 +309,7 @@ void loop()
     break;
   case TURN_6:
     turn(90);
-    break;    
+    break;
   case FW_7:
     forward(1);
     break;
