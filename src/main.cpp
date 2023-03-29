@@ -16,6 +16,9 @@
 #define in3 4
 #define in4 5
 
+double coordX = 0.0;
+double coordY = 0.0;
+
 byte encoder0PinALast = 0;
 int wheelBTicks = 0; // the number of the pulses
 int wheelBTicksPrev = 0;
@@ -254,6 +257,10 @@ void driveMotors()
     digitalWrite(in4, HIGH);
   }
   analogWrite(enB, abs(motorPowerB));
+}
+
+void updateLocation(){
+  
 }
 
 void setup()
