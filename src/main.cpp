@@ -1,17 +1,29 @@
 #include <Arduino.h>
 #include <PID_v1.h>
-#define MAX_PID_VALUE 250
 
-const byte encoder0pinA = 10; // A pin -> the interrupt pin 0
-const byte encoder0pinB = A0; // B pin -> the digital pin 3
+#define MAX_PID_VALUE 250
+/*Encoder pins*/
+#define encoder0pinA 10
+#define encoder0pinB A0
+#define encoder1pinA 11 
+#define encoder1pinB A1 
+/*Motor pins*/
+#define enA 7
+#define in1 9
+#define in2 8
+
+#define enB 6
+#define in3 4
+#define in4 5
+
+
 byte encoder0PinALast = 0;
 int wheelBTicks = 0; // the number of the pulses
 int wheelBTicksPrev = 0;
 double wheelBSpeed = 0;
 boolean directionB; // the rotation direction
 
-const byte encoder1pinA = 11; // A pin -> the interrupt pin 0
-const byte encoder1pinB = A1; // B pin -> the digital pin 3
+
 byte encoder1PinALast = 0;
 int wheelATicks = 0; // the number of the pulses
 int wheelATicksPrev = 0;
@@ -20,20 +32,14 @@ boolean directionA; // the rotation direction
 unsigned long previousMillis = 0;
 unsigned long previousMillisForward = 0;
 
-int enA = 7;
-int in1 = 9;
-int in2 = 8;
 
-int enB = 6;
-int in3 = 4;
-int in4 = 5;
 
 double motorPowerA = 0; // Power supplied to the motor PWM value.
 double setpointA = 0;
 double motorPowerB = 0; // Power supplied to the motor PWM value.
 double setpointB = 0;
-double KpA = 3.5, KiA = 0.117, KdA = 0;
-double KpB = 3.5, KiB = 0.105, KdB = 0;
+const double KpA = 3.5, KiA = 0.117, KdA = 0;
+const double KpB = 3.5, KiB = 0.105, KdB = 0;
 
 double afgelegdeWegTicks = 0;
 PID pidA(&wheelASpeed, &motorPowerA, &setpointA, KpA, KiA, KdA, DIRECT);
@@ -58,6 +64,14 @@ enum robotStates{
   HALT,
 };
 
+void incrementState(){
+      instructionState = static_cast<instruction>(instructionState + 1);
+}
+
+void resetSetPoints(){
+    setpointA = 0;
+    setpointB = 0;
+}
 
 void resetParametersPID(){
 pidA.SetOutputLimits(0.0, 1.0);  // Forces minimum up to 0.0
@@ -93,10 +107,9 @@ void forward(double distance)
   else
   {
     afgelegdeWegTicks = 0;
-    setpointA = 0;
-    setpointB = 0;
+    resetSetPoints();
     resetParametersPID();
-    instructionState = static_cast<instruction>(instructionState + 1);
+    incrementState();
   }
 }
 
@@ -128,16 +141,14 @@ void turn(double angle)
     {
       previousMillisForward = currentMillis;
       afgelegdeWegTicks += abs(wheelASpeed);
-      // Serial.println(afgelegdeWegTicks);
     }
   }
   else
   {
     afgelegdeWegTicks = 0;
-    setpointA = 0;
-    setpointB = 0;
+    resetSetPoints();
     resetParametersPID();
-    instructionState = static_cast<instruction>(instructionState + 1);
+    incrementState();
   }
 }
 
@@ -241,6 +252,8 @@ void setup()
   Serial.begin(9600);
   EncoderInit(); // Initialize the module
 }
+
+
 
 void loop()
 {
