@@ -41,29 +41,19 @@ double afgelegdeWegTicks = 0;
 PID pidA(&wheelASpeed, &motorPowerA, &setpointA, KpA, KiA, KdA, DIRECT);
 PID pidB(&wheelBSpeed, &motorPowerB, &setpointB, KpB, KiB, KdB, DIRECT);
 
-enum instruction
-{
-  FW_1,
-  TURN_2,
-  FW_3,
-  TURN_4,
-  FW_5,
-  TURN_6,
-  FW_7,
-  STOP
-};
-instruction instructionState = FW_1;
-
 enum robotStates
 {
   IDLE,
   NAVIGATING,
+  LOW_BATTERY,
+  CHARGING,
   HALT,
 };
+robotStates robotState = IDLE;
 
-void incrementState()
+void changeState(robotStates newState)
 {
-  instructionState = static_cast<instruction>(instructionState + 1);
+  robotState = newState;
 }
 
 void resetSetPoints()
@@ -109,7 +99,6 @@ void forward(double distance)
     afgelegdeWegTicks = 0;
     resetSetPoints();
     resetParametersPID();
-    incrementState();
   }
 }
 
@@ -148,7 +137,6 @@ void turn(double angle)
     afgelegdeWegTicks = 0;
     resetSetPoints();
     resetParametersPID();
-    incrementState();
   }
 }
 
@@ -235,33 +223,14 @@ void EncoderInit()
   attachInterrupt(digitalPinToInterrupt(encoder1pinA), wheelSpeedA, CHANGE);
 }
 
-void setup()
+void constrainMotorPower()
 {
-  pinMode(enA, OUTPUT);
-  pinMode(enB, OUTPUT);
-  pinMode(in1, OUTPUT);
-  pinMode(in2, OUTPUT);
-  pinMode(in3, OUTPUT);
-  pinMode(in4, OUTPUT);
-  pidA.SetMode(AUTOMATIC); // PID is set to automatic mode
-  pidA.SetSampleTime(50);  // Set PID sampling frequency is 50ms
-  pidA.SetOutputLimits(-MAX_PID_VALUE, MAX_PID_VALUE);
-  pidB.SetMode(AUTOMATIC); // PID is set to automatic mode
-  pidB.SetSampleTime(50);  // Set PID sampling frequency is 50ms
-  pidB.SetOutputLimits(-MAX_PID_VALUE, MAX_PID_VALUE);
-  Serial.begin(9600);
-  EncoderInit(); // Initialize the module
-}
-
-void loop()
-{
-  calculateSpeed();
   motorPowerA = constrain(motorPowerA, -MAX_PID_VALUE, MAX_PID_VALUE);
   motorPowerB = constrain(motorPowerB, -MAX_PID_VALUE, MAX_PID_VALUE);
+}
 
-  pidA.Compute();
-  pidB.Compute();
-
+void driveMotors()
+{
   if (motorPowerA < 0)
   {
     digitalWrite(in1, HIGH); // Omkeren van de polariteit van de linker motor om de robot naar voor te sturen
@@ -285,38 +254,33 @@ void loop()
     digitalWrite(in4, HIGH);
   }
   analogWrite(enB, abs(motorPowerB));
+}
 
-  Serial.print(motorPowerA);
-  Serial.print(" , ");
-  Serial.println(motorPowerB);
+void setup()
+{
+  pinMode(enA, OUTPUT);
+  pinMode(enB, OUTPUT);
+  pinMode(in1, OUTPUT);
+  pinMode(in2, OUTPUT);
+  pinMode(in3, OUTPUT);
+  pinMode(in4, OUTPUT);
+  pidA.SetMode(AUTOMATIC); // PID is set to automatic mode
+  pidA.SetSampleTime(50);  // Set PID sampling frequency is 50ms
+  pidA.SetOutputLimits(-MAX_PID_VALUE, MAX_PID_VALUE);
+  pidB.SetMode(AUTOMATIC); // PID is set to automatic mode
+  pidB.SetSampleTime(50);  // Set PID sampling frequency is 50ms
+  pidB.SetOutputLimits(-MAX_PID_VALUE, MAX_PID_VALUE);
+  Serial.begin(9600);
+  EncoderInit(); // Initialize the module
+}
 
-  switch (instructionState)
-  {
-  case FW_1:
-    forward(1);
-    break;
-  case TURN_2:
-    turn(90);
-    break;
-  case FW_3:
-    forward(1);
-    break;
-  case TURN_4:
-    turn(90);
-    break;
-  case FW_5:
-    forward(1);
-    break;
-  case TURN_6:
-    turn(90);
-    break;
-  case FW_7:
-    forward(1);
-    break;
-  case STOP:
-    break;
-  default:
-    instructionState = STOP;
-    break;
-  }
+void loop()
+{
+  calculateSpeed();
+  constrainMotorPower();
+
+  pidA.Compute();
+  pidB.Compute();
+
+  driveMotors();
 }
