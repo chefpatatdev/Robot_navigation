@@ -32,8 +32,8 @@ double motorPowerA = 0; // Power supplied to the motor PWM value.
 double setpointA = 0;
 double motorPowerB = 0; // Power supplied to the motor PWM value.
 double setpointB = 0;
-double KpA = 3, KiA = 0.12, KdA = 0;
-double KpB = 3, KiB = 0.105, KdB = 0;
+double KpA = 3.5, KiA = 0.117, KdA = 0;
+double KpB = 3.5, KiB = 0.105, KdB = 0;
 
 double afgelegdeWegTicks = 0;
 PID pidA(&wheelASpeed, &motorPowerA, &setpointA, KpA, KiA, KdA, DIRECT);
@@ -45,6 +45,9 @@ enum instruction
   TURN_2,
   FW_3,
   TURN_4,
+  FW_5,
+  TURN_6,
+  FW_7,
   STOP
 };
 
@@ -96,7 +99,7 @@ void turn(double angle)
   double ticksPerOmw = 1941;
   double wheelDiam = 65; // mm
   double wheelCirc = wheelDiam * PI;
-  double pivotDiam = 195; // mm
+  double pivotDiam = 200; // mm
   double pivotCirc = pivotDiam * PI;
   double arcLength = abs(angle) / 360 * pivotCirc; // mm
   double numRev = arcLength / wheelCirc;
@@ -274,16 +277,25 @@ void loop()
   switch (state)
   {
   case FW_1:
-    forward(0.5);
+    forward(1);
     break;
   case TURN_2:
-    turn(180);
+    turn(90);
     break;
   case FW_3:
-    forward(0.5);
+    forward(1);
     break;
   case TURN_4:
-    turn(-180);
+    turn(90);
+    break;
+  case FW_5:
+    forward(1);
+    break;
+  case TURN_6:
+    turn(90);
+    break;    
+  case FW_7:
+    forward(1);
     break;
   case STOP:
     break;
