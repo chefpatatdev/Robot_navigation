@@ -50,8 +50,14 @@ enum instruction
   FW_7,
   STOP
 };
+instruction instructionState = FW_1;
 
-instruction state = FW_1;
+enum robotStates{
+  IDLE,
+  NAVIGATING,
+  HALT,
+};
+
 
 void resetParametersPID(){
 pidA.SetOutputLimits(0.0, 1.0);  // Forces minimum up to 0.0
@@ -90,7 +96,7 @@ void forward(double distance)
     setpointA = 0;
     setpointB = 0;
     resetParametersPID();
-    state = static_cast<instruction>(state + 1);
+    instructionState = static_cast<instruction>(instructionState + 1);
   }
 }
 
@@ -131,7 +137,7 @@ void turn(double angle)
     setpointA = 0;
     setpointB = 0;
     resetParametersPID();
-    state = static_cast<instruction>(state + 1);
+    instructionState = static_cast<instruction>(instructionState + 1);
   }
 }
 
@@ -274,7 +280,7 @@ void loop()
   Serial.println(motorPowerB);
 
 
-  switch (state)
+  switch (instructionState)
   {
   case FW_1:
     forward(1);
@@ -300,7 +306,7 @@ void loop()
   case STOP:
     break;
   default:
-    state = STOP;
+    instructionState = STOP;
     break;
   }
 }
