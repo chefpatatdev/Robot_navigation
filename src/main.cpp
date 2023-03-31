@@ -1,5 +1,7 @@
 #include <Arduino.h>
 #include <PID_v1.h>
+#include <Wire.h>
+#include "INA219.h"
 
 #define MAX_PID_VALUE 250
 /*Encoder pins*/
@@ -15,6 +17,21 @@
 #define enB 6
 #define in3 4
 #define in4 5
+
+/*LED pins*/
+#define redPin 1;
+#define greenPin 2;
+#define bluePin  3;
+
+
+//I2C poorten van INA219
+INA219 ina1(0x40);
+INA219 ina2(0x41);
+INA219 ina3(0x42);
+INA219 ina4(0x43);
+
+const int min_I = 2960;
+const int min_V = 3.5
 
 double coordX = 0.0;
 double coordY = 0.0;
@@ -259,6 +276,42 @@ void driveMotors()
   analogWrite(enB, abs(motorPowerB));
 }
 
+
+void setColor(int redValue, int greenValue, int blueValue) {
+    analogWrite(redPin, redValue);
+    analogWrite(greenPin, greenValue);
+    analogWrite(bluePin, blueValue);
+}
+
+void setLED(float average_I, bool charging) {
+    if (charging) {
+        setColor(255, 165, 0); // Orange color
+    }
+    else if (average_I < min_I || !average_V) {
+        setColor(255, 0, 0); // Red Color
+    }
+    else {
+        setColor(0, 255, 0); // Green Color
+    }
+}
+
+
+float avrCurrent() {
+    return (ina1.getCurrent_mA() + ina2.getCurrent_mA() + ina3.getCurrent_mA()) / 3
+}
+bool charging() {
+    return false
+}
+
+bool avrVoltage() {
+    float loadvoltage1 = ina1.getBusVoltage_V() + (ina1.getShuntVoltage_mV() / 1000);
+    float loadvoltage2 = ina2.getBusVoltage_V() + (ina2.getShuntVoltage_mV() / 1000);
+    float loadvoltage3 = ina3.getBusVoltage_V() + (ina3.getShuntVoltage_mV() / 1000);
+
+    return !(loadvoltage1 < min_V || loadvoltage2 < min_V || loadvoltage3 < min_V )
+
+}
+
 void updateLocation(){
   
 }
@@ -271,6 +324,21 @@ void setup()
   pinMode(in2, OUTPUT);
   pinMode(in3, OUTPUT);
   pinMode(in4, OUTPUT);
+  pinMode(redPin, OUTPUT);
+  pinMode(greenPin, OUTPUT);
+  pinMode(bluePin, OUTPUT);
+
+  // Initialize the INA219.
+  // By default the initialization will use the largest range (32V, 2A).  However
+  // you can call a setCalibration function to change this range (see comments).
+  ina1.begin();
+  ina2.begin();
+  ina3.begin();
+  ina4.begin();
+  // To use a slightly lower 32V, 1A range (higher precision on amps):
+  //ina219.setCalibration_32V_1A();
+  // Or to use a lower 16V, 400mA range (higher precision on volts and amps):
+  //ina219.setCalibration_16V_400mA();
   pidA.SetMode(AUTOMATIC); // PID is set to automatic mode
   pidA.SetSampleTime(50);  // Set PID sampling frequency is 50ms
   pidA.SetOutputLimits(-MAX_PID_VALUE, MAX_PID_VALUE);
@@ -290,4 +358,5 @@ void loop()
   pidB.Compute();
 
   driveMotors();
+  setLED(avrCurrent(), charging());
 }
