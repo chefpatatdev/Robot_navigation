@@ -2,6 +2,8 @@
 #include <PID_v1.h>
 #include <Wire.h>
 #include "INA219.h"
+#include <OneWire.h>
+#include <DallasTemperature.h>
 
 #define MAX_PID_VALUE 250
 /*Encoder pins*/
@@ -30,8 +32,9 @@ INA219 ina2(0x41);
 INA219 ina3(0x42);
 INA219 ina4(0x43);
 
-const int min_I = 2960;
-const int min_V = 3.5
+const int minI = 2960;
+const int minV = 3.5;
+const int chargeT = 45;
 
 double coordX = 0.0;
 double coordY = 0.0;
@@ -283,11 +286,13 @@ void setColor(int redValue, int greenValue, int blueValue) {
     analogWrite(bluePin, blueValue);
 }
 
-void setLED(float average_I, bool charging) {
+void statusBattery(float average_I, bool charging) {
     if (charging) {
+        changeState(CHARGING);
         setColor(255, 165, 0); // Orange color
     }
-    else if (average_I < min_I || !average_V) {
+    else if (average_I < minI || !average_V) {
+        changeState(LOW_BATTERY);
         setColor(255, 0, 0); // Red Color
     }
     else {
@@ -308,10 +313,18 @@ bool avrVoltage() {
     float loadvoltage2 = ina2.getBusVoltage_V() + (ina2.getShuntVoltage_mV() / 1000);
     float loadvoltage3 = ina3.getBusVoltage_V() + (ina3.getShuntVoltage_mV() / 1000);
 
-    return !(loadvoltage1 < min_V || loadvoltage2 < min_V || loadvoltage3 < min_V )
+    return !(loadvoltage1 < minV || loadvoltage2 < minV || loadvoltage3 < minV )
 
 }
 
+/*
+void temperature(){
+    sensors.requestTemperatures();
+    if (!charging()) {
+        if(sensors.getTempCByIndex(0)> )
+    }
+}
+*/
 void updateLocation(){
   
 }
@@ -358,5 +371,5 @@ void loop()
   pidB.Compute();
 
   driveMotors();
-  setLED(avrCurrent(), charging());
+  statusBattery(avrCurrent(), charging());
 }
