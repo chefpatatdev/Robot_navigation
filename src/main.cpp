@@ -25,6 +25,11 @@
 #define greenPin 2;
 #define bluePin  3;
 
+/*temperatuur sensor*/
+#define ONE_WIRE_BUS 4
+OneWire oneWire(ONE_WIRE_BUS);
+DallasTemperature sensors(&oneWire);
+
 
 //I2C poorten van INA219
 INA219 ina1(0x40);
@@ -35,6 +40,7 @@ INA219 ina4(0x43);
 const int minI = 2960;
 const int minV = 3.5;
 const int chargeT = 45;
+const int workingT = 60;
 
 double coordX = 0.0;
 double coordY = 0.0;
@@ -71,6 +77,7 @@ enum robotStates
   LOW_BATTERY,
   CHARGING,
   HALT,
+  OVERHEAT,
 };
 robotStates robotState = IDLE;
 
@@ -317,14 +324,21 @@ bool avrVoltage() {
 
 }
 
-/*
+
 void temperature(){
     sensors.requestTemperatures();
     if (!charging()) {
-        if(sensors.getTempCByIndex(0)> )
+        if (sensors.getTempCByIndex(0) > workingT || sensors.getTempCByIndex(1) > workingT || sensors.getTempCByIndex(2) > workingT) {
+            changeState(OVERHEAT);
+        }
+    if (charging()) {
+        if (sensors.getTempCByIndex(0) > chargeT || sensors.getTempCByIndex(1) > chargeT || sensors.getTempCByIndex(2) > chargeT) {
+            changeState(OVERHEAT);
+        }
+
     }
 }
-*/
+
 void updateLocation(){
   
 }
@@ -352,6 +366,10 @@ void setup()
   //ina219.setCalibration_32V_1A();
   // Or to use a lower 16V, 400mA range (higher precision on volts and amps):
   //ina219.setCalibration_16V_400mA();
+
+  //temperatuursensors
+  sensors.begin();
+
   pidA.SetMode(AUTOMATIC); // PID is set to automatic mode
   pidA.SetSampleTime(50);  // Set PID sampling frequency is 50ms
   pidA.SetOutputLimits(-MAX_PID_VALUE, MAX_PID_VALUE);
