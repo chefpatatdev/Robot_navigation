@@ -1,5 +1,9 @@
 #include <Arduino.h>
 #include <PID_v1.h>
+#include <Wire.h>
+#include "INA219.h"
+#include <OneWire.h>
+#include <DallasTemperature.h>
 
 #define MAX_PID_VALUE 250
 /*Encoder pins*/
@@ -15,6 +19,31 @@
 #define enB 6
 #define in3 4
 #define in4 5
+
+/*LED pins*/
+#define redPin 1;
+#define greenPin 2;
+#define bluePin  3;
+
+/*temperatuur sensor*/
+#define ONE_WIRE_BUS 4
+OneWire oneWire(ONE_WIRE_BUS);
+DallasTemperature sensors(&oneWire);
+
+
+//I2C poorten van INA219
+INA219 ina1(0x40);
+INA219 ina2(0x41);
+INA219 ina3(0x42);
+INA219 ina4(0x43);
+
+const int minI = 2960;
+const int minV = 3.5;
+const int chargeT = 45;
+const int workingT = 60;
+
+double coordX = 0.0;
+double coordY = 0.0;
 
 byte encoder0PinALast = 0;
 int wheelBTicks = 0; // the number of the pulses
@@ -41,29 +70,20 @@ double afgelegdeWegTicks = 0;
 PID pidA(&wheelASpeed, &motorPowerA, &setpointA, KpA, KiA, KdA, DIRECT);
 PID pidB(&wheelBSpeed, &motorPowerB, &setpointB, KpB, KiB, KdB, DIRECT);
 
-enum instruction
-{
-  FW_1,
-  TURN_2,
-  FW_3,
-  TURN_4,
-  FW_5,
-  TURN_6,
-  FW_7,
-  STOP
-};
-instruction instructionState = FW_1;
-
 enum robotStates
 {
   IDLE,
   NAVIGATING,
+  LOW_BATTERY,
+  CHARGING,
   HALT,
+  OVERHEAT,
 };
+robotStates robotState = IDLE;
 
-void incrementState()
+void changeState(robotStates newState)
 {
-  instructionState = static_cast<instruction>(instructionState + 1);
+  robotState = newState;
 }
 
 void resetSetPoints()
@@ -109,7 +129,6 @@ void forward(double distance)
     afgelegdeWegTicks = 0;
     resetSetPoints();
     resetParametersPID();
-    incrementState();
   }
 }
 
@@ -148,7 +167,6 @@ void turn(double angle)
     afgelegdeWegTicks = 0;
     resetSetPoints();
     resetParametersPID();
-    incrementState();
   }
 }
 
@@ -235,33 +253,14 @@ void EncoderInit()
   attachInterrupt(digitalPinToInterrupt(encoder1pinA), wheelSpeedA, CHANGE);
 }
 
-void setup()
+void constrainMotorPower()
 {
-  pinMode(enA, OUTPUT);
-  pinMode(enB, OUTPUT);
-  pinMode(in1, OUTPUT);
-  pinMode(in2, OUTPUT);
-  pinMode(in3, OUTPUT);
-  pinMode(in4, OUTPUT);
-  pidA.SetMode(AUTOMATIC); // PID is set to automatic mode
-  pidA.SetSampleTime(50);  // Set PID sampling frequency is 50ms
-  pidA.SetOutputLimits(-MAX_PID_VALUE, MAX_PID_VALUE);
-  pidB.SetMode(AUTOMATIC); // PID is set to automatic mode
-  pidB.SetSampleTime(50);  // Set PID sampling frequency is 50ms
-  pidB.SetOutputLimits(-MAX_PID_VALUE, MAX_PID_VALUE);
-  Serial.begin(9600);
-  EncoderInit(); // Initialize the module
-}
-
-void loop()
-{
-  calculateSpeed();
   motorPowerA = constrain(motorPowerA, -MAX_PID_VALUE, MAX_PID_VALUE);
   motorPowerB = constrain(motorPowerB, -MAX_PID_VALUE, MAX_PID_VALUE);
+}
 
-  pidA.Compute();
-  pidB.Compute();
-
+void driveMotors()
+{
   if (motorPowerA < 0)
   {
     digitalWrite(in1, HIGH); // Omkeren van de polariteit van de linker motor om de robot naar voor te sturen
@@ -285,38 +284,110 @@ void loop()
     digitalWrite(in4, HIGH);
   }
   analogWrite(enB, abs(motorPowerB));
+}
 
-  Serial.print(motorPowerA);
-  Serial.print(" , ");
-  Serial.println(motorPowerB);
 
-  switch (instructionState)
-  {
-  case FW_1:
-    forward(1);
-    break;
-  case TURN_2:
-    turn(90);
-    break;
-  case FW_3:
-    forward(1);
-    break;
-  case TURN_4:
-    turn(90);
-    break;
-  case FW_5:
-    forward(1);
-    break;
-  case TURN_6:
-    turn(90);
-    break;
-  case FW_7:
-    forward(1);
-    break;
-  case STOP:
-    break;
-  default:
-    instructionState = STOP;
-    break;
-  }
+void setColor(int redValue, int greenValue, int blueValue) {
+    analogWrite(redPin, redValue);
+    analogWrite(greenPin, greenValue);
+    analogWrite(bluePin, blueValue);
+}
+
+void statusBattery(float average_I, bool charging) {
+    if (charging) {
+        changeState(CHARGING);
+        setColor(255, 165, 0); // Orange color
+    }
+    else if (average_I < minI || !average_V) {
+        changeState(LOW_BATTERY);
+        setColor(255, 0, 0); // Red Color
+    }
+    else {
+        setColor(0, 255, 0); // Green Color
+    }
+}
+
+
+float avrCurrent() {
+    return (ina1.getCurrent_mA() + ina2.getCurrent_mA() + ina3.getCurrent_mA()) / 3
+}
+bool charging() {
+    return false
+}
+
+bool avrVoltage() {
+    float loadvoltage1 = ina1.getBusVoltage_V() + (ina1.getShuntVoltage_mV() / 1000);
+    float loadvoltage2 = ina2.getBusVoltage_V() + (ina2.getShuntVoltage_mV() / 1000);
+    float loadvoltage3 = ina3.getBusVoltage_V() + (ina3.getShuntVoltage_mV() / 1000);
+
+    return !(loadvoltage1 < minV || loadvoltage2 < minV || loadvoltage3 < minV )
+
+}
+
+
+void temperature(){
+    sensors.requestTemperatures();
+    if (!charging()) {
+        if (sensors.getTempCByIndex(0) > workingT || sensors.getTempCByIndex(1) > workingT || sensors.getTempCByIndex(2) > workingT) {
+            changeState(OVERHEAT);
+        }
+    if (charging()) {
+        if (sensors.getTempCByIndex(0) > chargeT || sensors.getTempCByIndex(1) > chargeT || sensors.getTempCByIndex(2) > chargeT) {
+            changeState(OVERHEAT);
+        }
+
+    }
+}
+
+void updateLocation(){
+  
+}
+
+void setup()
+{
+  pinMode(enA, OUTPUT);
+  pinMode(enB, OUTPUT);
+  pinMode(in1, OUTPUT);
+  pinMode(in2, OUTPUT);
+  pinMode(in3, OUTPUT);
+  pinMode(in4, OUTPUT);
+  pinMode(redPin, OUTPUT);
+  pinMode(greenPin, OUTPUT);
+  pinMode(bluePin, OUTPUT);
+
+  // Initialize the INA219.
+  // By default the initialization will use the largest range (32V, 2A).  However
+  // you can call a setCalibration function to change this range (see comments).
+  ina1.begin();
+  ina2.begin();
+  ina3.begin();
+  ina4.begin();
+  // To use a slightly lower 32V, 1A range (higher precision on amps):
+  //ina219.setCalibration_32V_1A();
+  // Or to use a lower 16V, 400mA range (higher precision on volts and amps):
+  //ina219.setCalibration_16V_400mA();
+
+  //temperatuursensors
+  sensors.begin();
+
+  pidA.SetMode(AUTOMATIC); // PID is set to automatic mode
+  pidA.SetSampleTime(50);  // Set PID sampling frequency is 50ms
+  pidA.SetOutputLimits(-MAX_PID_VALUE, MAX_PID_VALUE);
+  pidB.SetMode(AUTOMATIC); // PID is set to automatic mode
+  pidB.SetSampleTime(50);  // Set PID sampling frequency is 50ms
+  pidB.SetOutputLimits(-MAX_PID_VALUE, MAX_PID_VALUE);
+  Serial.begin(9600);
+  EncoderInit(); // Initialize the module
+}
+
+void loop()
+{
+  calculateSpeed();
+  constrainMotorPower();
+
+  pidA.Compute();
+  pidB.Compute();
+
+  driveMotors();
+  statusBattery(avrCurrent(), charging());
 }
