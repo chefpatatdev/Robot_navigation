@@ -24,6 +24,8 @@
 #define redPin 1;
 #define greenPin 2;
 #define bluePin  3;
+long refresh_time_blink;
+bool ledState = 0;
 
 /*temperatuur sensor*/
 #define ONE_WIRE_BUS 4
@@ -296,11 +298,9 @@ void setColor(int redValue, int greenValue, int blueValue) {
 void statusBattery(float average_I, bool charging) {
     if (charging) {
         changeState(CHARGING);
-        setColor(255, 165, 0); // Orange color
     }
     else if (average_I < minI || !average_V) {
         changeState(LOW_BATTERY);
-        setColor(255, 0, 0); // Red Color
     }
     else {
         setColor(0, 255, 0); // Green Color
@@ -325,19 +325,40 @@ bool avrVoltage() {
 }
 
 
-void temperature(){
+void temperature()
+{
     sensors.requestTemperatures();
     if (!charging()) {
         if (sensors.getTempCByIndex(0) > workingT || sensors.getTempCByIndex(1) > workingT || sensors.getTempCByIndex(2) > workingT) {
             changeState(OVERHEAT);
         }
-    if (charging()) {
+    }
+    else if (charging()) {
         if (sensors.getTempCByIndex(0) > chargeT || sensors.getTempCByIndex(1) > chargeT || sensors.getTempCByIndex(2) > chargeT) {
             changeState(OVERHEAT);
         }
+    }
 
+}
+
+void blinkLed(int time)
+{
+    if (millis() > refresh_time_blink)
+    {
+        if (!ledState)
+        {
+            setColor(255, 165, 0); // Orange color
+            ledState = 1;
+        }
+        else
+        {
+            setColor(0, 0, 0); // Orange color
+            ledState = 0;
+        }
+        refresh_time_blink = millis() + time;
     }
 }
+
 
 void updateLocation(){
   
@@ -384,10 +405,31 @@ void loop()
 {
   calculateSpeed();
   constrainMotorPower();
+  temperature();
 
   pidA.Compute();
   pidB.Compute();
 
+  switch (robotState)
+  {
+  case IDLE:
+      break;
+  case NAVIGATING:
+      break;
+  case LOW_BATTERY:
+      setColor(255, 0, 0); // Red Color
+      break;
+  case CHARGING:
+      setColor(255, 165, 0); // Orange color
+      statusBattery(avrCurrent(), charging());
+      break;
+  case HALT:
+      break;
+  case OVERHEAT:
+      blinkLed(500)
+      break;
+  }
+
   driveMotors();
-  statusBattery(avrCurrent(), charging());
+
 }
