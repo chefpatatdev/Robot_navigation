@@ -44,8 +44,16 @@ const int minV = 3.5;
 const int chargeT = 45;
 const int workingT = 60;
 
-double coordX = 0.0;
+
+//positionering
+double coordX = 0.0;  //huidige positie
+double prevCoordX = 0.0; // vorige
 double coordY = 0.0;
+double prevCoordY = 0.0;
+double dWheel = 0;// avr distance in mm
+double absOrAngle = 0; // absolute orientatie hoek
+double prevAbsOrAngle = 0;
+double deltaAngle = 0;
 
 byte encoder0PinALast = 0;
 int wheelBTicks = 0; // the number of the pulses
@@ -60,6 +68,7 @@ double wheelASpeed = 0;
 boolean directionA; // the rotation direction
 unsigned long previousMillis = 0;
 unsigned long previousMillisForward = 0;
+
 
 double motorPowerA = 0; // Power supplied to the motor PWM value.
 double setpointA = 0;
@@ -288,6 +297,21 @@ void driveMotors()
   analogWrite(enB, abs(motorPowerB));
 }
 
+void updateLocation() {
+    double distancePerTick = 0.109; //mm
+    double pivotDiam = 200; //mm
+
+    dWheel = (wheelATicks*distancePerTick + wheelBTicks*distancePerTick) / 2;
+    deltaAngle = (wheelATicks * distancePerTick + wheelBTicks * distancePerTick) / (2 * pivotDiam); // alles in mm; hoek in radialen
+    coordX = (prevCoordX + dWheel * sin(prevAbsOrAngle + (deltaAngle / 2)))*1000; // omzetting naar meter
+    coordY = (prevCoordY + dWheel * cos(prevAbsOrAngle + (deltaAngle / 2)))*1000; // "          "      "
+    absOrAngle = prevAbsOrAngle + deltaAngle; //hoek in rad
+
+    prevCoordX = coordX;
+    prevCoordY = coordY;
+    prevAbsOrAngle = absOrAngle;
+}
+
 
 void setColor(int redValue, int greenValue, int blueValue) {
     analogWrite(redPin, redValue);
@@ -295,11 +319,11 @@ void setColor(int redValue, int greenValue, int blueValue) {
     analogWrite(bluePin, blueValue);
 }
 
-void statusBattery(float average_I, bool charging) {
-    if (charging) {
+void statusBattery() {
+    if (charging()) {
         changeState(CHARGING);
     }
-    else if (average_I < minI || !average_V) {
+    else if (avrCurrent() < minI || !avrVoltage()) {
         changeState(LOW_BATTERY);
     }
     else {
@@ -359,10 +383,6 @@ void blinkLed(int time)
     }
 }
 
-
-void updateLocation(){
-  
-}
 
 void setup()
 {
