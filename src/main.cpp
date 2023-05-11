@@ -47,9 +47,7 @@ const int workingT = 60;
 
 //positionering
 double coordX = 0.0;  //huidige positie
-double prevCoordX = 0.0; // vorige
 double coordY = 0.0;
-double prevCoordY = 0.0;
 double dWheel = 0;// avr distance in mm
 double absOrAngle = 0; // absolute orientatie hoek
 double prevAbsOrAngle = 0;
@@ -303,12 +301,10 @@ void updateLocation() {
 
     dWheel = (wheelATicks*distancePerTick + wheelBTicks*distancePerTick) / 2;
     deltaAngle = (wheelATicks * distancePerTick + wheelBTicks * distancePerTick) / (2 * pivotDiam); // alles in mm; hoek in radialen
-    coordX = (prevCoordX + dWheel * sin(prevAbsOrAngle + (deltaAngle / 2)))*1000; // omzetting naar meter
-    coordY = (prevCoordY + dWheel * cos(prevAbsOrAngle + (deltaAngle / 2)))*1000; // "          "      "
+    coordX += dWheel * sin(prevAbsOrAngle + (deltaAngle / 2))*1000; // omzetting naar meter
+    coordY += dWheel * cos(prevAbsOrAngle + (deltaAngle / 2))*1000; // "          "      "
     absOrAngle = prevAbsOrAngle + deltaAngle; //hoek in rad
 
-    prevCoordX = coordX;
-    prevCoordY = coordY;
     prevAbsOrAngle = absOrAngle;
 }
 
