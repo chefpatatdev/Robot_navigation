@@ -1,9 +1,13 @@
 #include <Arduino.h>
 #include <PID_v1.h>
+<<<<<<< HEAD
 #include <Wire.h>
 #include "INA219.h"
 #include <OneWire.h>
 #include <DallasTemperature.h>
+=======
+#include <RPLidar.h>
+>>>>>>> pinchange
 
 #define RPLIDAR_MOTOR 3
 /*Encoder pins*/
@@ -20,6 +24,7 @@
 #define in3 11
 #define in4 12
 
+<<<<<<< HEAD
 #define redPin 1;
 #define greenPin 2;
 #define bluePin  3;
@@ -29,12 +34,15 @@
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
 
+=======
+>>>>>>> pinchange
 RPLidar lidar;
 #define cone 15
 #define savedistance 50
 float minDistance = 100000;
 float angleAtMinDist = 0;
 
+<<<<<<< HEAD
 //I2C poorten van INA219
 INA219 ina1(0x40);
 INA219 ina2(0x41);
@@ -42,6 +50,10 @@ INA219 ina3(0x42);
 INA219 ina4(0x43);
 
 #define MAX_PID_VALUE 250
+=======
+#define MAX_PID_VALUE 250
+
+>>>>>>> pinchange
 const int minI = 2960;
 const int minV = 3.5;
 const int chargeT = 45;
@@ -325,10 +337,20 @@ bool avrVoltage() {
     float loadvoltage2 = ina2.getBusVoltage_V() + (ina2.getShuntVoltage_mV() / 1000);
     float loadvoltage3 = ina3.getBusVoltage_V() + (ina3.getShuntVoltage_mV() / 1000);
 
+<<<<<<< HEAD
     return !(loadvoltage1 < minV || loadvoltage2 < minV || loadvoltage3 < minV)
 
 }
 
+=======
+    pidA.SetMode(AUTOMATIC); // PID is set to automatic mode
+    pidA.SetSampleTime(50);  // Set PID sampling frequency is 50ms
+    pidA.SetOutputLimits(-MAX_PID_VALUE, MAX_PID_VALUE);
+    pidB.SetMode(AUTOMATIC); // PID is set to automatic mode
+    pidB.SetSampleTime(50);  // Set PID sampling frequency is 50ms
+    pidB.SetOutputLimits(-MAX_PID_VALUE, MAX_PID_VALUE);
+    Serial.begin(115200);
+>>>>>>> pinchange
 
 void temperature() {
     sensors.requestTemperatures();
@@ -377,6 +399,7 @@ void temperature() {
 
     void setup()
     {
+<<<<<<< HEAD
         pinMode(enA, OUTPUT);
         pinMode(enB, OUTPUT);
         pinMode(in1, OUTPUT);
@@ -421,6 +444,20 @@ void temperature() {
     {
         calculateSpeed();
         constrainMotorPower();
+=======
+    case IDLE:
+        break;
+    case NAVIGATING:
+        forward(1);
+        break;
+    case HALT:
+        break;
+    }
+
+    if (measure(directionA, directionB)) {
+        Serial.println("close");
+    }
+>>>>>>> pinchange
 
         pidA.Compute();
         pidB.Compute();
