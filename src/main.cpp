@@ -4,40 +4,45 @@
 #include "INA219.h"
 #include <OneWire.h>
 #include <DallasTemperature.h>
+#include <RPLidar.h>
 
-#define MAX_PID_VALUE 250
+#define RPLIDAR_MOTOR 3
 /*Encoder pins*/
-#define encoder0pinA 21
-#define encoder0pinB 48
-#define encoder1pinA 20
-#define encoder1pinB 49
+#define encoderAint 21
+#define encoderAana 48
+#define encoderBint 20
+#define encoderBana 49
 /*Motor pins*/
-#define enA 7
+#define enA 8
 #define in1 9
-#define in2 8
+#define in2 10
 
-#define enB 6
-#define in3 4
-#define in4 5
+#define enB 13
+#define in3 11
+#define in4 12
 
-/*LED pins*/
-#define redPin 1;
-#define greenPin 2;
-#define bluePin  3;
-long refresh_time_blink;
-bool ledState = 0;
+#define redPin 1
+#define greenPin 2
+#define bluePin  3
 
 /*temperatuur sensor*/
 #define ONE_WIRE_BUS 4
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
 
+RPLidar lidar;
+#define cone 15
+#define savedistance 50
+float minDistance = 100000;
+float angleAtMinDist = 0;
 
 //I2C poorten van INA219
 INA219 ina1(0x40);
 INA219 ina2(0x41);
 INA219 ina3(0x42);
 INA219 ina4(0x43);
+
+#define MAX_PID_VALUE 250
 
 const int minI = 2960;
 const int minV = 3.5;
@@ -52,21 +57,22 @@ double dWheel = 0;// avr distance in mm
 double absOrAngle = 0; // absolute orientatie hoek
 double prevAbsOrAngle = 0;
 double deltaAngle = 0;
+bool canupdatelocation = false;
 
-byte encoder0PinALast = 0;
+byte encoderAintLast = 0;
 int wheelBTicks = 0; // the number of the pulses
 int wheelBTicksPrev = 0;
 double wheelBSpeed = 0;
 boolean directionB; // the rotation direction
 
-byte encoder1PinALast = 0;
+byte encoderBintLast = 0;
 int wheelATicks = 0; // the number of the pulses
 int wheelATicksPrev = 0;
 double wheelASpeed = 0;
 boolean directionA; // the rotation direction
 unsigned long previousMillis = 0;
 unsigned long previousMillisForward = 0;
-unsigned long previousMillisCoords = 0;
+
 
 
 double motorPowerA = 0; // Power supplied to the motor PWM value.
@@ -82,237 +88,240 @@ PID pidB(&wheelBSpeed, &motorPowerB, &setpointB, KpB, KiB, KdB, DIRECT);
 
 enum robotStates
 {
-  IDLE,
-  NAVIGATING,
-  LOW_BATTERY,
-  CHARGING,
-  HALT,
-  OVERHEAT,
+    IDLE,
+    NAVIGATING,
+    LOW_BATTERY,
+    CHARGING,
+    HALT,
+    OVERHEAT,
 };
 robotStates robotState = IDLE;
 
 void changeState(robotStates newState)
 {
-  robotState = newState;
+    robotState = newState;
 }
 
 void resetSetPoints()
 {
-  setpointA = 0;
-  setpointB = 0;
+    setpointA = 0;
+    setpointB = 0;
 }
 
 void resetParametersPID()
 {
-  pidA.SetOutputLimits(0.0, 1.0);  // Forces minimum up to 0.0
-  pidA.SetOutputLimits(-1.0, 0.0); // Forces maximum down to 0.0
-  pidA.SetOutputLimits(-MAX_PID_VALUE, MAX_PID_VALUE);
-  pidB.SetOutputLimits(0.0, 1.0);  // Forces minimum up to 0.0
-  pidB.SetOutputLimits(-1.0, 0.0); // Forces maximum down to 0.0
-  pidB.SetOutputLimits(-MAX_PID_VALUE, MAX_PID_VALUE);
+    pidA.SetOutputLimits(0.0, 1.0);  // Forces minimum up to 0.0
+    pidA.SetOutputLimits(-1.0, 0.0); // Forces maximum down to 0.0
+    pidA.SetOutputLimits(-MAX_PID_VALUE, MAX_PID_VALUE);
+    pidB.SetOutputLimits(0.0, 1.0);  // Forces minimum up to 0.0
+    pidB.SetOutputLimits(-1.0, 0.0); // Forces maximum down to 0.0
+    pidB.SetOutputLimits(-MAX_PID_VALUE, MAX_PID_VALUE);
 }
 
 void forward(double distance)
 { // distance in meter
-  unsigned long currentMillis = millis();
-  if (afgelegdeWegTicks < abs(distance) * 9180)
-  {
-    if (distance > 0)
+    unsigned long currentMillis = millis();
+    if (afgelegdeWegTicks < abs(distance) * 9180)
     {
-      setpointA = 60;
-      setpointB = 60;
+        if (distance > 0)
+        {
+            setpointA = 60;
+            setpointB = 60;
+        }
+        else
+        {
+            setpointA = -60;
+            setpointB = -60;
+        }
+        if (currentMillis - previousMillisForward >= 50)
+        { // per 10ms
+            previousMillisForward = currentMillis;
+            afgelegdeWegTicks += abs(wheelASpeed);
+            // Serial.println(afgelegdeWegTicks);
+        }
     }
     else
     {
-      setpointA = -60;
-      setpointB = -60;
+        afgelegdeWegTicks = 0;
+        resetSetPoints();
+        resetParametersPID();
     }
-    if (currentMillis - previousMillisForward >= 50)
-    { // per 10ms
-      previousMillisForward = currentMillis;
-      afgelegdeWegTicks += abs(wheelASpeed);
-      // Serial.println(afgelegdeWegTicks);
-    }
-  }
-  else
-  {
-    afgelegdeWegTicks = 0;
-    resetSetPoints();
-    resetParametersPID();
-  }
 }
 
 void turn(double angle)
 {
-  double ticksPerOmw = 1941;
-  double wheelDiam = 65; // mm
-  double wheelCirc = wheelDiam * PI;
-  double pivotDiam = 200; // mm
-  double pivotCirc = pivotDiam * PI;
-  double arcLength = abs(angle) / 360 * pivotCirc; // mm
-  double numRev = arcLength / wheelCirc;
-  double numTicks = numRev * ticksPerOmw;
+    double ticksPerOmw = 1941;
+    double wheelDiam = 65; // mm
+    double wheelCirc = wheelDiam * PI;
+    double pivotDiam = 200; // mm
+    double pivotCirc = pivotDiam * PI;
+    double arcLength = abs(angle) / 360 * pivotCirc; // mm
+    double numRev = arcLength / wheelCirc;
+    double numTicks = numRev * ticksPerOmw;
 
-  if (afgelegdeWegTicks < numTicks)
-  {
-    if (angle > 0)
+    if (afgelegdeWegTicks < numTicks)
     {
-      setpointA = -40; // wiel links vooruit/wiel rechts achteruit (beide voor numTicks)
-      setpointB = 40;
+        if (angle > 0)
+        {
+            setpointA = -40; // wiel links vooruit/wiel rechts achteruit (beide voor numTicks)
+            setpointB = 40;
+        }
+        else
+        {
+            setpointA = 40; // wiel rechts vooruit/wiel links achteruit (beide voor numTicks)
+            setpointB = -40;
+        }
+        unsigned long currentMillis = millis();
+        if (currentMillis - previousMillisForward >= 50)
+        {
+            previousMillisForward = currentMillis;
+            afgelegdeWegTicks += abs(wheelASpeed);
+        }
     }
     else
     {
-      setpointA = 40; // wiel rechts vooruit/wiel links achteruit (beide voor numTicks)
-      setpointB = -40;
+        afgelegdeWegTicks = 0;
+        resetSetPoints();
+        resetParametersPID();
     }
-    unsigned long currentMillis = millis();
-    if (currentMillis - previousMillisForward >= 50)
-    {
-      previousMillisForward = currentMillis;
-      afgelegdeWegTicks += abs(wheelASpeed);
-    }
-  }
-  else
-  {
-    afgelegdeWegTicks = 0;
-    resetSetPoints();
-    resetParametersPID();
-  }
 }
 
 void calculateSpeed()
 {
-  unsigned long currentMillis = millis();
+    unsigned long currentMillis = millis();
 
-  if (currentMillis - previousMillis >= 50)
-  {
-    previousMillis = currentMillis;
-    wheelASpeed = (double)(wheelATicks - wheelATicksPrev);
-    wheelBSpeed = (double)(wheelBTicks - wheelBTicksPrev);
+    if (currentMillis - previousMillis >= 50)
+    {
+        canupdatelocation = true;
+        previousMillis = currentMillis;
+        wheelASpeed = (double)(wheelATicks - wheelATicksPrev);
+        wheelBSpeed = (double)(wheelBTicks - wheelBTicksPrev);
 
-    wheelATicksPrev = wheelATicks;
-    wheelBTicksPrev = wheelBTicks;
-    /*Serial.print(wheelASpeed);
-    Serial.print(" , ");
-    Serial.println(wheelBSpeed);*/
-  }
+        wheelATicksPrev = wheelATicks;
+        wheelBTicksPrev = wheelBTicks;
+        /*Serial.print(wheelASpeed);
+          Serial.print(" , ");
+          Serial.println(wheelBSpeed);*/
+    }
 }
 
 void wheelSpeedB()
 {
-  int encoder0pinACurrent = digitalRead(encoder0pinA);
-  if ((encoder0PinALast == LOW) && encoder0pinACurrent)
-  {
-    int encoder0pinBCurrent = digitalRead(encoder0pinB);
-    if (encoder0pinBCurrent == LOW && directionB)
+    int encoderAintCurrent = digitalRead(encoderAint);
+    if ((encoderAintLast == LOW) && encoderAintCurrent)
     {
-      directionB = false; // Reverse
+        int encoderAanaCurrent = digitalRead(encoderAana);
+        if (encoderAanaCurrent == LOW && directionB)
+        {
+            directionB = false; // Reverse
+        }
+        else if (encoderAanaCurrent == HIGH && !directionB)
+        {
+            directionB = true; // Forward
+        }
     }
-    else if (encoder0pinBCurrent == HIGH && !directionB)
-    {
-      directionB = true; // Forward
-    }
-  }
-  encoder0PinALast = encoder0pinACurrent;
+    encoderAintLast = encoderAintCurrent;
 
-  if (!directionB)
-  {
-    wheelBTicks++;
-  }
-  else
-  {
-    wheelBTicks--;
-  }
+    if (!directionB)
+    {
+        wheelBTicks++;
+    }
+    else
+    {
+        wheelBTicks--;
+    }
 }
 
 void wheelSpeedA()
 {
-  int encoder1pinACurrent = digitalRead(encoder1pinA);
-  if ((encoder1PinALast == LOW) && encoder1pinACurrent)
-  {
-    int encoder1pinBCurrent = digitalRead(encoder1pinB);
-    if (encoder1pinBCurrent == LOW && directionA)
+    int encoderBintCurrent = digitalRead(encoderBint);
+    if ((encoderBintLast == LOW) && encoderBintCurrent)
     {
-      directionA = false; // Reverse
+        int encoderBanaCurrent = digitalRead(encoderBana);
+        if (encoderBanaCurrent == LOW && directionA)
+        {
+            directionA = false; // Reverse
+        }
+        else if (encoderBanaCurrent == HIGH && !directionA)
+        {
+            directionA = true; // Forward
+        }
     }
-    else if (encoder1pinBCurrent == HIGH && !directionA)
-    {
-      directionA = true; // Forward
-    }
-  }
-  encoder1PinALast = encoder1pinACurrent;
+    encoderBintLast = encoderBintCurrent;
 
-  if (directionA)
-  {
-    wheelATicks++;
-  }
-  else
-  {
-    wheelATicks--;
-  }
+    if (directionA)
+    {
+        wheelATicks++;
+    }
+    else
+    {
+        wheelATicks--;
+    }
 }
 
 void EncoderInit()
 {
-  directionB = true; // default -> Forward
-  pinMode(encoder0pinB, INPUT);
-  attachInterrupt(digitalPinToInterrupt(encoder0pinA), wheelSpeedB, CHANGE);
+    directionB = true; // default -> Forward
+    pinMode(encoderAana, INPUT);
+    attachInterrupt(digitalPinToInterrupt(encoderAint), wheelSpeedB, CHANGE);
 
-  directionA = true; // default -> Forward
-  pinMode(encoder1pinB, INPUT);
-  attachInterrupt(digitalPinToInterrupt(encoder1pinA), wheelSpeedA, CHANGE);
+    directionA = true; // default -> Forward
+    pinMode(encoderBana, INPUT);
+    attachInterrupt(digitalPinToInterrupt(encoderBint), wheelSpeedA, CHANGE);
 }
 
 void constrainMotorPower()
 {
-  motorPowerA = constrain(motorPowerA, -MAX_PID_VALUE, MAX_PID_VALUE);
-  motorPowerB = constrain(motorPowerB, -MAX_PID_VALUE, MAX_PID_VALUE);
+    motorPowerA = constrain(motorPowerA, -MAX_PID_VALUE, MAX_PID_VALUE);
+    motorPowerB = constrain(motorPowerB, -MAX_PID_VALUE, MAX_PID_VALUE);
 }
 
 void driveMotors()
 {
-  if (motorPowerA < 0)
-  {
-    digitalWrite(in1, HIGH); // Omkeren van de polariteit van de linker motor om de robot naar voor te sturen
-    digitalWrite(in2, LOW);
-  }
-  else
-  {
-    digitalWrite(in1, LOW); // Omkeren van de polariteit van de linker motor om de robot naar achter te sturen
-    digitalWrite(in2, HIGH);
-  }
-  analogWrite(enA, abs(motorPowerA));
+    if (motorPowerA < 0)
+    {
+        digitalWrite(in1, HIGH); // Omkeren van de polariteit van de linker motor om de robot naar voor te sturen
+        digitalWrite(in2, LOW);
+    }
+    else
+    {
+        digitalWrite(in1, LOW); // Omkeren van de polariteit van de linker motor om de robot naar achter te sturen
+        digitalWrite(in2, HIGH);
+    }
+    analogWrite(enA, abs(motorPowerA));
 
-  if (motorPowerB > 0)
-  {
-    digitalWrite(in3, HIGH); // Omkeren van de polariteit van de rechter motor om de robot naar voor te sturen
-    digitalWrite(in4, LOW);
-  }
-  else
-  {
-    digitalWrite(in3, LOW); // Omkeren van de polariteit van de rechter motor om de robot naar achter te sturen
-    digitalWrite(in4, HIGH);
-  }
-  analogWrite(enB, abs(motorPowerB));
+    if (motorPowerB > 0)
+    {
+        digitalWrite(in3, HIGH); // Omkeren van de polariteit van de rechter motor om de robot naar voor te sturen
+        digitalWrite(in4, LOW);
+    }
+    else
+    {
+        digitalWrite(in3, LOW); // Omkeren van de polariteit van de rechter motor om de robot naar achter te sturen
+        digitalWrite(in4, HIGH);
+    }
+    analogWrite(enB, abs(motorPowerB));
 }
 
 void updateLocation() {
-    unsigned long currentMillis = millis();
 
-  if (currentMillis - previousMillisCoords >= 50)
-  {
-    previousMillisCoords = currentMillis;
-    double distancePerTick = 0.109; //mm
-    double pivotDiam = 200; //mm
+    if (canupdatelocation)
+    {
+        canupdatelocation = false;
+        Serial.print(coordX);
+        Serial.print(" , ");
+        Serial.println(coordY);
+        double distancePerTick = 0.109; //mm
+        double pivotDiam = 200; //mm
 
-    dWheel = ((wheelATicks-wheelATicksPrev)*distancePerTick + (wheelBTicks-wheelBTicksPrev)*distancePerTick) / 2;
-    deltaAngle = (wheelATicks * distancePerTick + wheelBTicks * distancePerTick) / (2 * pivotDiam); // alles in mm; hoek in radialen
-    coordX += dWheel * sin(prevAbsOrAngle + (deltaAngle / 2))*1000; // omzetting naar meter
-    coordY += dWheel * cos(prevAbsOrAngle + (deltaAngle / 2))*1000; // "          "      "
-    absOrAngle = prevAbsOrAngle + deltaAngle; //hoek in rad
+        dWheel = ((wheelATicks - wheelATicksPrev) * distancePerTick + (wheelBTicks - wheelBTicksPrev) * distancePerTick) / 2;
+        deltaAngle = (wheelATicks * distancePerTick + wheelBTicks * distancePerTick) / (2 * pivotDiam); // alles in mm; hoek in radialen
+        coordX += dWheel * sin(prevAbsOrAngle + (deltaAngle / 2)) * 1000; // omzetting naar meter
+        coordY += dWheel * cos(prevAbsOrAngle + (deltaAngle / 2)) * 1000; // "          "      "
+        absOrAngle = prevAbsOrAngle + deltaAngle; //hoek in rad
 
-    prevAbsOrAngle = absOrAngle;
-  }
+        prevAbsOrAngle = absOrAngle;
+    }
 }
 
 
@@ -325,9 +334,11 @@ void setColor(int redValue, int greenValue, int blueValue) {
 void statusBattery() {
     if (charging()) {
         changeState(CHARGING);
+        setColor(255, 165, 0); // Orange color
     }
     else if (avrCurrent() < minI || !avrVoltage()) {
         changeState(LOW_BATTERY);
+        setColor(255, 0, 0); // Red Color
     }
     else {
         setColor(0, 255, 0); // Green Color
@@ -336,10 +347,10 @@ void statusBattery() {
 
 
 float avrCurrent() {
-    return (ina1.getCurrent_mA() + ina2.getCurrent_mA() + ina3.getCurrent_mA()) / 3
+    return (ina1.getCurrent_mA() + ina2.getCurrent_mA() + ina3.getCurrent_mA()) / 3;
 }
 bool charging() {
-    return false
+    return false;
 }
 
 bool avrVoltage() {
@@ -347,117 +358,122 @@ bool avrVoltage() {
     float loadvoltage2 = ina2.getBusVoltage_V() + (ina2.getShuntVoltage_mV() / 1000);
     float loadvoltage3 = ina3.getBusVoltage_V() + (ina3.getShuntVoltage_mV() / 1000);
 
-    return !(loadvoltage1 < minV || loadvoltage2 < minV || loadvoltage3 < minV )
+    return !(loadvoltage1 < minV || loadvoltage2 < minV || loadvoltage3 < minV);
 
 }
 
-
-void temperature()
-{
+void temperature() {
     sensors.requestTemperatures();
     if (!charging()) {
         if (sensors.getTempCByIndex(0) > workingT || sensors.getTempCByIndex(1) > workingT || sensors.getTempCByIndex(2) > workingT) {
             changeState(OVERHEAT);
         }
-    }
-    else if (charging()) {
-        if (sensors.getTempCByIndex(0) > chargeT || sensors.getTempCByIndex(1) > chargeT || sensors.getTempCByIndex(2) > chargeT) {
-            changeState(OVERHEAT);
+        if (charging()) {
+            if (sensors.getTempCByIndex(0) > chargeT || sensors.getTempCByIndex(1) > chargeT || sensors.getTempCByIndex(2) > chargeT) {
+                changeState(OVERHEAT);
+            }
+
         }
     }
-
 }
+bool measure(int directionlook) {
+    if (IS_OK(lidar.waitPoint())) {
 
-void blinkLed(int time)
-{
-    if (millis() > refresh_time_blink)
-    {
-        if (!ledState)
-        {
-            setColor(255, 165, 0); // Orange color
-            ledState = 1;
+        RPLidarMeasurement current_point = lidar.getCurrentPoint();
+        float distance = current_point.distance;
+        float angle = current_point.angle;
+        if (lidar.getCurrentPoint().startBit) {
+            minDistance = 100000;
         }
-        else
-        {
-            setColor(0, 0, 0); // Orange color
-            ledState = 0;
+        else if (distance > 0 && distance < minDistance && angle < (directionlook + cone) && angle >(directionlook - cone)) {
+            minDistance = distance;
         }
-        refresh_time_blink = millis() + time;
     }
+    else {
+        analogWrite(RPLIDAR_MOTOR, 0);
+        rplidar_response_device_info_t info;
+        if (IS_OK(lidar.getDeviceInfo(info, 100))) {
+            lidar.startScan();
+            analogWrite(RPLIDAR_MOTOR, 255);
+            delay(1000);
+        }
+    }
+    return minDistance < savedistance * 10;
 }
 
 
 void setup()
 {
-  pinMode(enA, OUTPUT);
-  pinMode(enB, OUTPUT);
-  pinMode(in1, OUTPUT);
-  pinMode(in2, OUTPUT);
-  pinMode(in3, OUTPUT);
-  pinMode(in4, OUTPUT);
-  pinMode(redPin, OUTPUT);
-  pinMode(greenPin, OUTPUT);
-  pinMode(bluePin, OUTPUT);
+    pinMode(enA, OUTPUT);
+    pinMode(enB, OUTPUT);
+    pinMode(in1, OUTPUT);
+    pinMode(in2, OUTPUT);
+    pinMode(in3, OUTPUT);
+    pinMode(in4, OUTPUT);
+    pinMode(redPin, OUTPUT);
+    pinMode(greenPin, OUTPUT);
+    pinMode(bluePin, OUTPUT);
 
-  // Initialize the INA219.
-  // By default the initialization will use the largest range (32V, 2A).  However
-  // you can call a setCalibration function to change this range (see comments).
-  ina1.begin();
-  ina2.begin();
-  ina3.begin();
-  ina4.begin();
-  // To use a slightly lower 32V, 1A range (higher precision on amps):
-  //ina219.setCalibration_32V_1A();
-  // Or to use a lower 16V, 400mA range (higher precision on volts and amps):
-  //ina219.setCalibration_16V_400mA();
+    // Initialize the INA219.
+    // By default the initialization will use the largest range (32V, 2A).  However
+    // you can call a setCalibration function to change this range (see comments).
+    //ina1.begin();
+    //ina2.begin();
+    //ina3.begin();
+    //ina4.begin();
+    // To use a slightly lower 32V, 1A range (higher precision on amps):
+    //ina219.setCalibration_32V_1A();
+    // Or to use a lower 16V, 400mA range (higher precision on volts and amps):
+    //ina219.setCalibration_16V_400mA();
 
-  //temperatuursensors
-  sensors.begin();
+    //temperatuursensors
+    //sensors.begin();
 
-  pidA.SetMode(AUTOMATIC); // PID is set to automatic mode
-  pidA.SetSampleTime(50);  // Set PID sampling frequency is 50ms
-  pidA.SetOutputLimits(-MAX_PID_VALUE, MAX_PID_VALUE);
-  pidB.SetMode(AUTOMATIC); // PID is set to automatic mode
-  pidB.SetSampleTime(50);  // Set PID sampling frequency is 50ms
-  pidB.SetOutputLimits(-MAX_PID_VALUE, MAX_PID_VALUE);
-  Serial.begin(9600);
-  EncoderInit(); // Initialize the module
+    pidA.SetMode(AUTOMATIC); // PID is set to automatic mode
+    pidA.SetSampleTime(50);  // Set PID sampling frequency is 50ms
+    pidA.SetOutputLimits(-MAX_PID_VALUE, MAX_PID_VALUE);
+    pidB.SetMode(AUTOMATIC); // PID is set to automatic mode
+    pidB.SetSampleTime(50);  // Set PID sampling frequency is 50ms
+    pidB.SetOutputLimits(-MAX_PID_VALUE, MAX_PID_VALUE);
+    Serial.begin(115200);
+
+    //Serial1.begin(115200);  // For RPLidar
+    //lidar.begin(Serial1);
+    pinMode(RPLIDAR_MOTOR, OUTPUT);
+
+    EncoderInit(); // Initialize the module
 }
 
 void loop()
 {
-  calculateSpeed();
-  //constrainMotorPower();
-  //temperature();
+    calculateSpeed();
+    //constrainMotorPower();
+    //temperature();
 
-  //pidA.Compute();
-  //pidB.Compute();
+    //pidA.Compute();
+    //pidB.Compute();
+    switch (robotState)
+    {
+    case IDLE:
+        updateLocation();
 
-  switch (robotState)
-  {
-  case IDLE:
-    updateLocation();
-    Serial.print(coordX);
-    Serial.print(" , ");
-    Serial.println(coordY);
+        break;
+    case NAVIGATING:
+        break;
+    case LOW_BATTERY:
+        //setColor(255, 0, 0); // Red Color
+        break;
+    case CHARGING:
+        setColor(255, 165, 0); // Orange color
+        //statusBattery()//avrCurrent(), charging());
+        break;
+    case HALT:
+        break;
+    case OVERHEAT:
+        //blinkLed(500)
+        break;
+    }
 
-      break;
-  case NAVIGATING:
-      break;
-  case LOW_BATTERY:
-      setColor(255, 0, 0); // Red Color
-      break;
-  case CHARGING:
-      setColor(255, 165, 0); // Orange color
-      statusBattery(avrCurrent(), charging());
-      break;
-  case HALT:
-      break;
-  case OVERHEAT:
-      blinkLed(500)
-      break;
-  }
-
-  //driveMotors();
+    //driveMotors();
 
 }
