@@ -308,16 +308,21 @@ void updateLocation() {
     if (canupdatelocation)
     {
         canupdatelocation = false;
-        Serial.print(coordX);
+        Serial.print(coordX/1000);
         Serial.print(" , ");
-        Serial.println(coordY);
+        Serial.print(coordY/1000);
+        Serial.print(" , ");
+
         double distancePerTick = 0.109; //mm
         double pivotDiam = 200; //mm
 
-        dWheel = ((wheelATicks - wheelATicksPrev) * distancePerTick + (wheelBTicks - wheelBTicksPrev) * distancePerTick) / 2;
-        deltaAngle = (wheelATicks * distancePerTick + wheelBTicks * distancePerTick) / (2 * pivotDiam); // alles in mm; hoek in radialen
-        coordX += dWheel * sin(prevAbsOrAngle + (deltaAngle / 2)) / 1000; // omzetting naar meter
-        coordY += dWheel * cos(prevAbsOrAngle + (deltaAngle / 2)) / 1000; // "          "      "
+        dWheel = (wheelASpeed * distancePerTick + wheelBSpeed * distancePerTick) / 2;
+        deltaAngle = (wheelBSpeed * distancePerTick - wheelASpeed  * distancePerTick) / (pivotDiam); // alles in mm; hoek in radialen
+                Serial.print(deltaAngle*RAD_TO_DEG);
+        Serial.print(" , ");
+        Serial.println(prevAbsOrAngle*RAD_TO_DEG);
+        coordX += dWheel * cos((float)(prevAbsOrAngle + (deltaAngle / 2))); // omzetting naar meter
+        coordY += dWheel * sin((float)(prevAbsOrAngle + (deltaAngle / 2))); // "          "      "
         prevAbsOrAngle += deltaAngle; //hoek in rad
     }
 }
@@ -445,16 +450,16 @@ void setup()
 void loop()
 {
     calculateSpeed();
-    //constrainMotorPower();
+    constrainMotorPower();
     //temperature();
 
-    //pidA.Compute();
-    //pidB.Compute();
+    pidA.Compute();
+    pidB.Compute();
     switch (robotState)
     {
     case IDLE:
         updateLocation();
-
+        forward(1);
         break;
     case NAVIGATING:
         break;
@@ -472,6 +477,6 @@ void loop()
         break;
     }
 
-    //driveMotors();
+    driveMotors();
 
 }
