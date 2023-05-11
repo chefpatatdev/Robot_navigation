@@ -71,6 +71,7 @@ double wheelASpeed = 0;
 boolean directionA; // the rotation direction
 unsigned long previousMillis = 0;
 unsigned long previousMillisForward = 0;
+unsigned long previousMillisCoords = 0;
 
 
 double motorPowerA = 0; // Power supplied to the motor PWM value.
@@ -301,16 +302,22 @@ void driveMotors()
 }
 
 void updateLocation() {
+    unsigned long currentMillis = millis();
+
+  if (currentMillis - previousMillisCoords >= 50)
+  {
+    previousMillisCoords = currentMillis;
     double distancePerTick = 0.109; //mm
     double pivotDiam = 200; //mm
 
-    dWheel = (wheelATicks*distancePerTick + wheelBTicks*distancePerTick) / 2;
+    dWheel = ((wheelATicks-wheelATicksPrev)*distancePerTick + (wheelBTicks-wheelBTicksPrev)*distancePerTick) / 2;
     deltaAngle = (wheelATicks * distancePerTick + wheelBTicks * distancePerTick) / (2 * pivotDiam); // alles in mm; hoek in radialen
     coordX += dWheel * sin(prevAbsOrAngle + (deltaAngle / 2))*1000; // omzetting naar meter
     coordY += dWheel * cos(prevAbsOrAngle + (deltaAngle / 2))*1000; // "          "      "
     absOrAngle = prevAbsOrAngle + deltaAngle; //hoek in rad
 
     prevAbsOrAngle = absOrAngle;
+  }
 }
 
 
@@ -435,14 +442,38 @@ void setup()
 
 void loop()
 {
-    //calculateSpeed();
-    //constrainMotorPower();
-    //pidA.Compute();
-    //pidB.Compute();
-    if (measure(90 + 180 * directionA)) {
-        Serial.println("close");
-    }
+  calculateSpeed();
+  //constrainMotorPower();
+  //temperature();
 
-    //driveMotors();
-    //statusBattery(avrCurrent(), charging());
+  //pidA.Compute();
+  //pidB.Compute();
+
+  switch (robotState)
+  {
+  case IDLE:
+    updateLocation();
+    Serial.print(coordX);
+    Serial.print(" , ");
+    Serial.println(coordY);
+
+      break;
+  case NAVIGATING:
+      break;
+  case LOW_BATTERY:
+      setColor(255, 0, 0); // Red Color
+      break;
+  case CHARGING:
+      setColor(255, 165, 0); // Orange color
+      statusBattery(avrCurrent(), charging());
+      break;
+  case HALT:
+      break;
+  case OVERHEAT:
+      blinkLed(500)
+      break;
+  }
+
+  //driveMotors();
+
 }
