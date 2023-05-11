@@ -316,11 +316,9 @@ void updateLocation() {
 
         dWheel = ((wheelATicks - wheelATicksPrev) * distancePerTick + (wheelBTicks - wheelBTicksPrev) * distancePerTick) / 2;
         deltaAngle = (wheelATicks * distancePerTick + wheelBTicks * distancePerTick) / (2 * pivotDiam); // alles in mm; hoek in radialen
-        coordX += dWheel * sin(prevAbsOrAngle + (deltaAngle / 2)) * 1000; // omzetting naar meter
-        coordY += dWheel * cos(prevAbsOrAngle + (deltaAngle / 2)) * 1000; // "          "      "
-        absOrAngle = prevAbsOrAngle + deltaAngle; //hoek in rad
-
-        prevAbsOrAngle = absOrAngle;
+        coordX += dWheel * sin(prevAbsOrAngle + (deltaAngle / 2)) / 1000; // omzetting naar meter
+        coordY += dWheel * cos(prevAbsOrAngle + (deltaAngle / 2)) / 1000; // "          "      "
+        prevAbsOrAngle += deltaAngle; //hoek in rad
     }
 }
 
