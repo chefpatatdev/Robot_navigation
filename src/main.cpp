@@ -345,33 +345,31 @@ void temperature() {
         }
     }
 }
-bool measure(boolean dirA, boolean dirB) {
-    if (dirA == dirB) {
-        if (IS_OK(lidar.waitPoint())) {
-            int directionlook = 90 + 180 * dirA;
-            RPLidarMeasurement current_point = lidar.getCurrentPoint();
-            float distance = current_point.distance;
-            float angle = current_point.angle;
-            if (lidar.getCurrentPoint().startBit) {
-                minDistance = 100000;
-            }
-            else if (distance > 0 && distance < minDistance && angle < (directionlook + cone) && angle >(directionlook - cone)) {
-                minDistance = distance;
-            }
+bool measure(int directionlook) {
+    if (IS_OK(lidar.waitPoint())) {
+        
+        RPLidarMeasurement current_point = lidar.getCurrentPoint();
+        float distance = current_point.distance;
+        float angle = current_point.angle;
+        if (lidar.getCurrentPoint().startBit) {
+            minDistance = 100000;
         }
-        else {
-            analogWrite(RPLIDAR_MOTOR, 0);
-            rplidar_response_device_info_t info;
-            if (IS_OK(lidar.getDeviceInfo(info, 100))) {
-                lidar.startScan();
-                analogWrite(RPLIDAR_MOTOR, 255);
-                delay(1000);
-            }
+        else if (distance > 0 && distance < minDistance && angle < (directionlook + cone) && angle >(directionlook - cone)) {
+            minDistance = distance;
         }
-        return minDistance < savedistance * 10;
     }
-    return false;
+    else {
+        analogWrite(RPLIDAR_MOTOR, 0);
+        rplidar_response_device_info_t info;
+        if (IS_OK(lidar.getDeviceInfo(info, 100))) {
+            lidar.startScan();
+            analogWrite(RPLIDAR_MOTOR, 255);
+            delay(1000);
+        }
+    }
+    return minDistance < savedistance * 10;
 }
+
 
 void updateLocation() {
 
@@ -425,8 +423,7 @@ void loop()
     //constrainMotorPower();
     //pidA.Compute();
     //pidB.Compute();
-
-    if (measure(directionA, directionB)) {
+    if (measure(90 + 180 * directionA)) {
         Serial.println("close");
     }
 
