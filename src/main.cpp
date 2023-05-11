@@ -412,8 +412,8 @@ void setup()
     pidB.SetOutputLimits(-MAX_PID_VALUE, MAX_PID_VALUE);
     Serial.begin(115200);
 
-    Serial2.begin(115200);  // For RPLidar
-    lidar.begin(Serial2);
+    Serial1.begin(115200);  // For RPLidar
+    lidar.begin(Serial1);
     pinMode(RPLIDAR_MOTOR, OUTPUT);
 
     EncoderInit(); // Initialize the module
