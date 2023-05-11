@@ -58,6 +58,9 @@ double absOrAngle = 0; // absolute orientatie hoek
 double prevAbsOrAngle = 0;
 double deltaAngle = 0;
 bool canupdatelocation = false;
+double maxTravelDistance = 1.0;
+
+
 
 byte encoderAintLast = 0;
 int wheelBTicks = 0; // the number of the pulses
@@ -403,6 +406,16 @@ bool measure(int directionlook) {
     }
     return minDistance < savedistance * 10;
 }
+void navigate(int xtarget, int ytarget) {
+    double dx = xtarget - coordX;
+    double dy = ytarget - coordY;
+    double targetAngle = atan2(dy, dx);
+    double distance = sqrt(dx * dx + dy * dy);
+    double angleDifference = targetAngle - currentAngle;
+    //draai(angeldifference);
+    double travelDistance = min(distance, maxTravelDistance);
+    //vooruitgaan(traveldistance);
+}
 
 
 void setup()
@@ -420,17 +433,17 @@ void setup()
     // Initialize the INA219.
     // By default the initialization will use the largest range (32V, 2A).  However
     // you can call a setCalibration function to change this range (see comments).
-    //ina1.begin();
-    //ina2.begin();
-    //ina3.begin();
-    //ina4.begin();
+    ina1.begin();
+    ina2.begin();
+    ina3.begin();
+    ina4.begin();
     // To use a slightly lower 32V, 1A range (higher precision on amps):
     //ina219.setCalibration_32V_1A();
     // Or to use a lower 16V, 400mA range (higher precision on volts and amps):
     //ina219.setCalibration_16V_400mA();
 
     //temperatuursensors
-    //sensors.begin();
+    sensors.begin();
 
     pidA.SetMode(AUTOMATIC); // PID is set to automatic mode
     pidA.SetSampleTime(50);  // Set PID sampling frequency is 50ms
@@ -440,8 +453,8 @@ void setup()
     pidB.SetOutputLimits(-MAX_PID_VALUE, MAX_PID_VALUE);
     Serial.begin(115200);
 
-    //Serial1.begin(115200);  // For RPLidar
-    //lidar.begin(Serial1);
+    Serial1.begin(115200);  // For RPLidar
+    lidar.begin(Serial1);
     pinMode(RPLIDAR_MOTOR, OUTPUT);
 
     EncoderInit(); // Initialize the module
