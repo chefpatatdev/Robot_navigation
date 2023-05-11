@@ -7,10 +7,10 @@
 
 #define MAX_PID_VALUE 250
 /*Encoder pins*/
-#define encoder0pinA 10
-#define encoder0pinB A0
-#define encoder1pinA 11
-#define encoder1pinB A1
+#define encoder0pinA 21
+#define encoder0pinB 48
+#define encoder1pinA 20
+#define encoder1pinB 49
 /*Motor pins*/
 #define enA 7
 #define in1 9
@@ -66,6 +66,7 @@ double wheelASpeed = 0;
 boolean directionA; // the rotation direction
 unsigned long previousMillis = 0;
 unsigned long previousMillisForward = 0;
+unsigned long previousMillisCoords = 0;
 
 
 double motorPowerA = 0; // Power supplied to the motor PWM value.
@@ -296,16 +297,22 @@ void driveMotors()
 }
 
 void updateLocation() {
+    unsigned long currentMillis = millis();
+
+  if (currentMillis - previousMillisCoords >= 50)
+  {
+    previousMillisCoords = currentMillis;
     double distancePerTick = 0.109; //mm
     double pivotDiam = 200; //mm
 
-    dWheel = (wheelATicks*distancePerTick + wheelBTicks*distancePerTick) / 2;
+    dWheel = ((wheelATicks-wheelATicksPrev)*distancePerTick + (wheelBTicks-wheelBTicksPrev)*distancePerTick) / 2;
     deltaAngle = (wheelATicks * distancePerTick + wheelBTicks * distancePerTick) / (2 * pivotDiam); // alles in mm; hoek in radialen
     coordX += dWheel * sin(prevAbsOrAngle + (deltaAngle / 2))*1000; // omzetting naar meter
     coordY += dWheel * cos(prevAbsOrAngle + (deltaAngle / 2))*1000; // "          "      "
     absOrAngle = prevAbsOrAngle + deltaAngle; //hoek in rad
 
     prevAbsOrAngle = absOrAngle;
+  }
 }
 
 
@@ -420,15 +427,20 @@ void setup()
 void loop()
 {
   calculateSpeed();
-  constrainMotorPower();
-  temperature();
+  //constrainMotorPower();
+  //temperature();
 
-  pidA.Compute();
-  pidB.Compute();
+  //pidA.Compute();
+  //pidB.Compute();
 
   switch (robotState)
   {
   case IDLE:
+    updateLocation();
+    Serial.print(coordX);
+    Serial.print(" , ");
+    Serial.println(coordY);
+
       break;
   case NAVIGATING:
       break;
@@ -446,6 +458,6 @@ void loop()
       break;
   }
 
-  driveMotors();
+  //driveMotors();
 
 }
