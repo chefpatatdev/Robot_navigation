@@ -1,20 +1,13 @@
 #include <Arduino.h>
 #include <PID_v1.h>
-
 #include <RPLidar.h>
-RPLidar lidar;
-#define RPLIDAR_MOTOR 3
-#define cone 15
-#define savedistance 50
-float minDistance = 100000;
-float angleAtMinDist = 0;
 
-#define MAX_PID_VALUE 250
+#define RPLIDAR_MOTOR 3
 /*Encoder pins*/
-#define encoderAint 62
-#define encoderAana 63
-#define encoderBint 64
-#define encoderBana 65
+#define encoderAint 21
+#define encoderAana 48
+#define encoderBint 20
+#define encoderBana 49
 /*Motor pins*/
 #define enA 8
 #define in1 9
@@ -23,6 +16,14 @@ float angleAtMinDist = 0;
 #define enB 13
 #define in3 11
 #define in4 12
+
+RPLidar lidar;
+#define cone 15
+#define savedistance 50
+float minDistance = 100000;
+float angleAtMinDist = 0;
+
+#define MAX_PID_VALUE 250
 
 const int minI = 2960;
 const int minV = 3.5;
@@ -312,8 +313,6 @@ void setup()
     pinMode(in3, OUTPUT);
     pinMode(in4, OUTPUT);
 
-
-
     pidA.SetMode(AUTOMATIC); // PID is set to automatic mode
     pidA.SetSampleTime(50);  // Set PID sampling frequency is 50ms
     pidA.SetOutputLimits(-MAX_PID_VALUE, MAX_PID_VALUE);
@@ -342,6 +341,7 @@ void loop()
     case IDLE:
         break;
     case NAVIGATING:
+        forward(1);
         break;
     case HALT:
         break;
@@ -349,7 +349,6 @@ void loop()
 
     if (measure(directionA, directionB)) {
         Serial.println("close");
-
     }
 
     driveMotors();
