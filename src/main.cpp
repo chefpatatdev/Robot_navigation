@@ -421,17 +421,15 @@ void setup()
 
 void loop()
 {
-    calculateSpeed();
-    constrainMotorPower();
-    pidA.Compute();
-    pidB.Compute();
+    //calculateSpeed();
+    //constrainMotorPower();
+    //pidA.Compute();
+    //pidB.Compute();
 
     if (measure(directionA, directionB)) {
         Serial.println("close");
     }
 
-
-
-    driveMotors();
-    statusBattery(avrCurrent(), charging());
+    //driveMotors();
+    //statusBattery(avrCurrent(), charging());
 }
