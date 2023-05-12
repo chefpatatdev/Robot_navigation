@@ -20,9 +20,9 @@
 #define in3 10
 #define in4 9
 
-#define redPin 1
-#define greenPin 2
-#define bluePin  3
+#define redPin 7
+#define greenPin 6
+#define bluePin  5
 
 /*temperatuur sensor*/
 #define ONE_WIRE_BUS 4
