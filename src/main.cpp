@@ -13,13 +13,13 @@
 #define encoderBint 20
 #define encoderBana 49
 /*Motor pins*/
-#define enA 8
-#define in1 9
-#define in2 10
+#define enA 13
+#define in1 11
+#define in2 12
 
-#define enB 13
-#define in3 11
-#define in4 12
+#define enB 8
+#define in3 10
+#define in4 9
 
 #define redPin 1
 #define greenPin 2
@@ -406,16 +406,7 @@ bool measure(int directionlook) {
     }
     return minDistance < savedistance * 10;
 }
-void navigate(int xtarget, int ytarget) {
-    double dx = xtarget - coordX;
-    double dy = ytarget - coordY;
-    double targetAngle = atan2(dy, dx);
-    double distance = sqrt(dx * dx + dy * dy);
-    double angleDifference = targetAngle - currentAngle;
-    //draai(angeldifference);
-    double travelDistance = min(distance, maxTravelDistance);
-    //vooruitgaan(traveldistance);
-}
+
 
 
 void setup()
@@ -430,21 +421,6 @@ void setup()
     pinMode(greenPin, OUTPUT);
     pinMode(bluePin, OUTPUT);
 
-    // Initialize the INA219.
-    // By default the initialization will use the largest range (32V, 2A).  However
-    // you can call a setCalibration function to change this range (see comments).
-    ina1.begin();
-    ina2.begin();
-    ina3.begin();
-    ina4.begin();
-    // To use a slightly lower 32V, 1A range (higher precision on amps):
-    //ina219.setCalibration_32V_1A();
-    // Or to use a lower 16V, 400mA range (higher precision on volts and amps):
-    //ina219.setCalibration_16V_400mA();
-
-    //temperatuursensors
-    sensors.begin();
-
     pidA.SetMode(AUTOMATIC); // PID is set to automatic mode
     pidA.SetSampleTime(50);  // Set PID sampling frequency is 50ms
     pidA.SetOutputLimits(-MAX_PID_VALUE, MAX_PID_VALUE);
@@ -453,9 +429,9 @@ void setup()
     pidB.SetOutputLimits(-MAX_PID_VALUE, MAX_PID_VALUE);
     Serial.begin(115200);
 
-    Serial1.begin(115200);  // For RPLidar
-    lidar.begin(Serial1);
-    pinMode(RPLIDAR_MOTOR, OUTPUT);
+    //Serial1.begin(115200);  // For RPLidar
+    //lidar.begin(Serial1);
+    //pinMode(RPLIDAR_MOTOR, OUTPUT);
 
     EncoderInit(); // Initialize the module
 }
