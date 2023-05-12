@@ -75,8 +75,8 @@ double motorPowerA = 0; // Power supplied to the motor PWM value.
 double setpointA = 0;
 double motorPowerB = 0; // Power supplied to the motor PWM value.
 double setpointB = 0;
-const double KpA = 3.5, KiA = 0.105, KdA = 0;
-const double KpB = 3.5, KiB = 0.117, KdB = 0;
+const double KpA = 3.5, KiA = 0.120, KdA = 0;
+const double KpB = 2.9, KiB = 0.090, KdB = 0;
 
 double afgelegdeWegTicks = 0;
 PID pidA(&wheelASpeed, &motorPowerA, &setpointA, KpA, KiA, KdA, DIRECT);
