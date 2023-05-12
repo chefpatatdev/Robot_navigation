@@ -1,7 +1,6 @@
 #include <Arduino.h>
 #include <PID_v1.h>
 #include <Wire.h>
-#include "INA219.h"
 #include <OneWire.h>
 #include <DallasTemperature.h>
 #include <RPLidar.h>
@@ -35,12 +34,6 @@ RPLidar lidar;
 #define savedistance 50
 float minDistance = 100000;
 float angleAtMinDist = 0;
-
-//I2C poorten van INA219
-INA219 ina1(0x40);
-INA219 ina2(0x41);
-INA219 ina3(0x42);
-INA219 ina4(0x43);
 
 #define MAX_PID_VALUE 250
 
@@ -82,8 +75,8 @@ double motorPowerA = 0; // Power supplied to the motor PWM value.
 double setpointA = 0;
 double motorPowerB = 0; // Power supplied to the motor PWM value.
 double setpointB = 0;
-const double KpA = 3.5, KiA = 0.117, KdA = 0;
-const double KpB = 3.5, KiB = 0.105, KdB = 0;
+const double KpA = 3.5, KiA = 0.105, KdA = 0;
+const double KpB = 3.5, KiB = 0.117, KdB = 0;
 
 double afgelegdeWegTicks = 0;
 PID pidA(&wheelASpeed, &motorPowerA, &setpointA, KpA, KiA, KdA, DIRECT);
@@ -342,7 +335,7 @@ void statusBattery() {
         changeState(CHARGING);
         setColor(255, 165, 0); // Orange color
     }
-    else if (avrCurrent() < minI || !avrVoltage()) {
+    else if (true) {
         changeState(LOW_BATTERY);
         setColor(255, 0, 0); // Red Color
     }
@@ -352,21 +345,10 @@ void statusBattery() {
 }
 
 
-float avrCurrent() {
-    return (ina1.getCurrent_mA() + ina2.getCurrent_mA() + ina3.getCurrent_mA()) / 3;
-}
 bool charging() {
     return false;
 }
 
-bool avrVoltage() {
-    float loadvoltage1 = ina1.getBusVoltage_V() + (ina1.getShuntVoltage_mV() / 1000);
-    float loadvoltage2 = ina2.getBusVoltage_V() + (ina2.getShuntVoltage_mV() / 1000);
-    float loadvoltage3 = ina3.getBusVoltage_V() + (ina3.getShuntVoltage_mV() / 1000);
-
-    return !(loadvoltage1 < minV || loadvoltage2 < minV || loadvoltage3 < minV);
-
-}
 
 void temperature() {
     sensors.requestTemperatures();
@@ -448,7 +430,8 @@ void loop()
     {
     case IDLE:
         updateLocation();
-        forward(1);
+        setpointA = 80;
+         setpointB = 80;
         break;
     case NAVIGATING:
         break;
@@ -465,7 +448,7 @@ void loop()
         //blinkLed(500)
         break;
     }
-
+ 
     driveMotors();
 
 }
