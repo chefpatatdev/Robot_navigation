@@ -20,9 +20,9 @@
 #define in3 10
 #define in4 9
 
-#define redPin 7
-#define greenPin 6
-#define bluePin  5
+#define redPin 5
+#define greenPin 7
+#define bluePin  6
 
 /*temperatuur sensor*/
 #define ONE_WIRE_BUS 4
@@ -31,13 +31,12 @@ DallasTemperature sensors(&oneWire);
 
 RPLidar lidar;
 #define cone 15
-#define savedistance 20
+#define savedistance 50
 float minDistance = 100000;
 float angleAtMinDist = 0;
 int objectCounter = 0;
 float distancel = 0;
 float anglel = 0;
-
 
 #define MAX_PID_VALUE 250
 
@@ -49,10 +48,13 @@ const int workingT = 60;
 //positionering
 double coordX = 0.0;  //huidige positie
 double coordY = 0.0;
-double targetCoordX = 0.5; //target positie
-double targetCoordY = 0;
-double distance = 0;
+double targetCoordX = 1; //target positie
+double targetCoordY = 1;
+double distanceToTarget = 0;
 double turnAngleToTarget = 0;
+
+String X;
+String Y;
 
 double dWheel = 0;// avr distance in mm
 double absOrAngle = 0; // absolute orientatie hoek
@@ -77,7 +79,7 @@ boolean directionA; // the rotation direction
 unsigned long previousMillis = 0;
 unsigned long previousMillisForward = 0;
 unsigned long previousMillisLidar = 0;
-
+unsigned long previousMillisNavigation = 0;
 
 
 double motorPowerA = 0; // Power supplied to the motor PWM value.
@@ -95,14 +97,15 @@ PID pidB(&wheelBSpeed, &motorPowerB, &setpointB, KpB, KiB, KdB, DIRECT);
 
 enum robotStates
 {
-    IDLE,
+    IDLING,
     NAVIGATING,
     LOW_BATTERY,
     CHARGING,
     HALT,
     OVERHEAT,
+    HALTLIDAR,
 };
-robotStates robotState = IDLE;
+robotStates robotState = IDLING;
 
 void changeState(robotStates newState)
 {
@@ -129,6 +132,7 @@ void forward(double distance, int instructionCode)
 { // distance in meter
 
     if (currentInstructionCode == instructionCode) {
+        //Serial.println("forward");
         unsigned long currentMillis = millis();
         /*          if (currentMillis - previousMillisLidar >= 1000)
               {
@@ -183,7 +187,6 @@ void forward(double distance, int instructionCode)
             afgelegdeWegTicks = 0;
             resetSetPoints();
             resetParametersPID();
-            objectCounter = 0;
             tempAngle = prevAbsOrAngle * RAD_TO_DEG;
             currentInstructionCode++;
         }
@@ -192,12 +195,13 @@ void forward(double distance, int instructionCode)
 
 void turn(double angle, int instructionCode)
 {
-    if (currentInstructionCode == instructionCode) {
 
+    if (currentInstructionCode == instructionCode) {
+        //Serial.println("turn");
         double targetError = angle - prevAbsOrAngle * RAD_TO_DEG;
         //Serial.print(targetError);
         //Serial.print(" , ");
-        //Serial.println(prevAbsOrAngle * RAD_TO_DEG);
+        //Serial.println(prevAbsOrAngle*RAD_TO_DEG);
 
         if (angle > 0)
         {
@@ -354,9 +358,11 @@ void updateLocation() {
     if (canupdatelocation)
     {
         canupdatelocation = false;
-        //Serial.print(coordX/1000);
-        //Serial.print(" , ");
-        //Serial.println(coordY/1000);
+        Serial.print(coordX);
+        Serial.print(" , ");
+        Serial.print(coordY);
+        Serial.print(" , ");
+        Serial.println(prevAbsOrAngle * RAD_TO_DEG);
 
         double distancePerTick = 0.109; //mm
         double pivotDiam = 200; //mm
@@ -364,8 +370,8 @@ void updateLocation() {
         dWheel = (wheelASpeed * distancePerTick + wheelBSpeed * distancePerTick) / 2;
         deltaAngle = (wheelBSpeed * distancePerTick - wheelASpeed * distancePerTick) / (pivotDiam); // alles in mm; hoek in radialen
         //Serial.println(prevAbsOrAngle*RAD_TO_DEG);
-        coordX += dWheel * cos((float)(prevAbsOrAngle + (deltaAngle / 2))); // omzetting naar meter
-        coordY += dWheel * sin((float)(prevAbsOrAngle + (deltaAngle / 2))); // "          "      "
+        coordX += dWheel * cos((float)(prevAbsOrAngle + (deltaAngle / 2))) / 1000; // omzetting naar meter
+        coordY += dWheel * sin((float)(prevAbsOrAngle + (deltaAngle / 2))) / 1000; // "          "      "
         prevAbsOrAngle += deltaAngle; //hoek in rad
     }
 }
@@ -381,6 +387,11 @@ bool charging() {
     return false;
 }
 
+void calculateNavigation() {
+    distanceToTarget = sqrt((targetCoordX - coordX) * (targetCoordX - coordX) + (targetCoordY - coordY) * (targetCoordY - coordY));
+    turnAngleToTarget = atan2(targetCoordY - coordY, targetCoordX - coordX) * RAD_TO_DEG;
+    currentInstructionCode = 0;
+}
 
 void temperature() {
     sensors.requestTemperatures();
@@ -396,7 +407,6 @@ void temperature() {
         }
     }
 }
-
 void startlidar() {
     while (true) {
         lidar.waitPoint();
@@ -408,21 +418,6 @@ void startlidar() {
             return;
         }
     }
-
-
-    /*
-      while (!(IS_OK(lidar.waitPoint()))) {
-      Serial.println("loop");
-      analogWrite(RPLIDAR_MOTOR, 0);
-      rplidar_response_device_info_t info;
-      Serial.println(IS_OK(lidar.getDeviceInfo(info, 100)));
-      if (IS_OK(lidar.getDeviceInfo(info, 100))) {
-      Serial.println("here");
-      lidar.startScan();
-      analogWrite(RPLIDAR_MOTOR, 255);
-      delay(1000);
-      }
-      }*/
 }
 bool measure(int directionlook) {
     lidar.waitPoint(500);
@@ -444,11 +439,9 @@ bool measure(int directionlook) {
 }
 
 void navigate() {
+    //Serial.println(currentInstructionCode);
     turn(turnAngleToTarget, 0);
-    forward(distance, 1);
-    if (currentInstructionCode == 2) {
-        robotState = HALT;
-    }
+    forward(distanceToTarget, 1);
 }
 
 
@@ -478,7 +471,6 @@ void setup()
     pinMode(RPLIDAR_MOTOR, OUTPUT);
     startlidar();
 
-
     EncoderInit(); // Initialize the module
     //analogWrite(RPLIDAR_MOTOR, 255);
     //delay(2000);
@@ -487,46 +479,93 @@ void setup()
 void loop() {
     calculateSpeed();
     constrainMotorPower();
-    //temperature();
-    //Serial.println(measure(90));
+    //Serial.println(robotState);
     updateLocation();
     pidA.Compute();
     pidB.Compute();
-    switch (robotState)
+    if (robotState == IDLING)
     {
-    case IDLE:
-        robotState = NAVIGATING;
-        distance = sqrt((targetCoordX - coordX) * (targetCoordX - coordX) + (targetCoordY - coordY) * (targetCoordY - coordY));
-        turnAngleToTarget = atan2(targetCoordY - coordY, targetCoordX - coordX) * RAD_TO_DEG;
-        break;
-    case NAVIGATING:
+
+        setColor(0, 255, 0);
+        Serial.println("Enter x-coord.");
+        while (Serial.available() == 0);
+        X = Serial.readStringUntil('\n');
+        targetCoordX = X.toDouble();
+
+
+        Serial.println("Enter y-coord.");
+        while (Serial.available() == 0);
+        Y = Serial.readStringUntil('\n');
+        targetCoordY = Y.toDouble();
+        //Serial.println(targetCoordX);
+        //Serial.println(targetCoordY);
+
+        calculateNavigation();
+        changeState(NAVIGATING);
+
+        Serial.print(distanceToTarget);
+        Serial.print(" , ");
+        Serial.println(turnAngleToTarget);
+    }
+    else if (robotState == NAVIGATING) {
+
         setColor(255, 0, 0);
         navigate();
-        break;
-    case LOW_BATTERY:
-        //setColor(255, 0, 0); // Red Color
-        break;
-    case CHARGING:
-        setColor(255, 165, 0); // Orange color
-        //statusBattery()//avrCurrent(), charging());
-        break;
-    case HALT:
+        unsigned long currentMillis = millis();
+        if (currentMillis - previousMillisNavigation >= 1000) {
+            previousMillisNavigation = currentMillis;
+            afgelegdeWegTicks = 0;
+            resetSetPoints();
+            resetParametersPID();
+
+            tempAngle = prevAbsOrAngle * RAD_TO_DEG;
+            if (distanceToTarget > 0.05) {
+                calculateNavigation();
+                //Serial.println(distanceToTarget);
+                //Serial.print(" , ");
+                //Serial.println(turnAngleToTarget);
+            }
+            else {
+                changeState(HALT);
+            }
+        }
+
+
+
+    }
+    else if (robotState == HALT) {
+        setColor(0, 0, 255);
         afgelegdeWegTicks = 0;
         resetSetPoints();
         resetParametersPID();
-        objectCounter = 0;
         tempAngle = prevAbsOrAngle * RAD_TO_DEG;
-        currentInstructionCode++;
-        break;
-    case OVERHEAT:
-        //blinkLed(500)
-        break;
+        changeState(IDLING);
+        currentInstructionCode = 0; //2DE KEER LEZEN GAAT NIET EN NAAR VERKEERDE COORDINATEN
+
     }
+    else if (robotState == HALTLIDAR) {
+        setColor(0, 0, 255);
+        afgelegdeWegTicks = 0;
+        resetSetPoints();
+        resetParametersPID();
+        tempAngle = prevAbsOrAngle * RAD_TO_DEG;
+        if (millis() - previousMillisLidar >= 1000) {
+            changeState(NAVIGATING);
+        }
+
+        currentInstructionCode = 0; //2DE KEER LEZEN GAAT NIET EN NAAR VERKEERDE COORDINATEN
+    }
+
+    else {
+        setColor(255, 255, 255);
+    }
+
     if (measure(270)) {
         Serial.println("close");
-        robotState = HALT;
+        robotState = HALTLIDAR;
         previousMillisLidar = millis();
     }
+
     driveMotors();
 
 }
