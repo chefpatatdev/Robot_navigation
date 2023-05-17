@@ -354,9 +354,11 @@ void updateLocation() {
     if (canupdatelocation)
     {
         canupdatelocation = false;
-        Serial.print(coordX/1000);
+        Serial.print(coordX);
         Serial.print(" , ");
-        Serial.println(coordY/1000);
+        Serial.print(coordY);
+        Serial.print(" , ");
+        Serial.println(prevAbsOrAngle*RAD_TO_DEG);
 
         double distancePerTick = 0.109; //mm
         double pivotDiam = 200; //mm
@@ -364,8 +366,8 @@ void updateLocation() {
         dWheel = (wheelASpeed * distancePerTick + wheelBSpeed * distancePerTick) / 2;
         deltaAngle = (wheelBSpeed * distancePerTick - wheelASpeed  * distancePerTick) / (pivotDiam); // alles in mm; hoek in radialen
         //Serial.println(prevAbsOrAngle*RAD_TO_DEG);
-        coordX += dWheel * cos((float)(prevAbsOrAngle + (deltaAngle / 2))); // omzetting naar meter
-        coordY += dWheel * sin((float)(prevAbsOrAngle + (deltaAngle / 2))); // "          "      "
+        coordX += dWheel * cos((float)(prevAbsOrAngle + (deltaAngle / 2)))/1000; // omzetting naar meter
+        coordY += dWheel * sin((float)(prevAbsOrAngle + (deltaAngle / 2)))/1000; // "          "      "
         prevAbsOrAngle += deltaAngle; //hoek in rad
     }
 }
@@ -501,12 +503,12 @@ void loop(){
       changeState(NAVIGATING);
       distanceToTarget = sqrt((targetCoordX-coordX)*(targetCoordX-coordX)+(targetCoordY-coordY)*(targetCoordY-coordY));
       turnAngleToTarget = atan2(targetCoordY - coordY, targetCoordX - coordX)*RAD_TO_DEG;
-      Serial.println(distanceToTarget);
+      Serial.print(distanceToTarget);
+      Serial.print(" , ");
       Serial.println(turnAngleToTarget);
         break;
     case NAVIGATING:
-        Serial.println("jghjhg");
-        Serial.println(robotState);
+
         setColor(255,0,0);
         navigate();
         break;
@@ -518,11 +520,6 @@ void loop(){
         break;
     case HALT:
         setColor(255, 0, 0);
-        afgelegdeWegTicks = 0;
-        resetSetPoints();
-        resetParametersPID();
-        objectCounter = 0;
-        tempAngle = prevAbsOrAngle*RAD_TO_DEG;
         changeState(IDLING);
         currentInstructionCode =0; //2DE KEER LEZEN GAAT NIET EN NAAR VERKEERDE COORDINATEN
         break;
