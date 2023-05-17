@@ -124,8 +124,9 @@ void resetParametersPID()
 
 void forward(double distance,int instructionCode)
 { // distance in meter
-  
+
 if(currentInstructionCode == instructionCode){
+  //Serial.println("forward");
   unsigned long currentMillis = millis();
   /*          if (currentMillis - previousMillisLidar >= 1000)
         {
@@ -189,12 +190,13 @@ if(currentInstructionCode == instructionCode){
 
 void turn(double angle,int instructionCode)
 {
+    
     if(currentInstructionCode == instructionCode){
-
+    //Serial.println("turn");
     double targetError = angle -prevAbsOrAngle*RAD_TO_DEG;
-        Serial.print(targetError);
-        Serial.print(" , ");
-        Serial.println(prevAbsOrAngle*RAD_TO_DEG);
+        //Serial.print(targetError);
+        //Serial.print(" , ");
+        //Serial.println(prevAbsOrAngle*RAD_TO_DEG);
 
         if (angle > 0)
         {
@@ -349,9 +351,9 @@ void updateLocation() {
     if (canupdatelocation)
     {
         canupdatelocation = false;
-        //Serial.print(coordX/1000);
-        //Serial.print(" , ");
-        //Serial.println(coordY/1000);
+        Serial.print(coordX/1000);
+        Serial.print(" , ");
+        Serial.println(coordY/1000);
 
         double distancePerTick = 0.109; //mm
         double pivotDiam = 200; //mm
@@ -428,10 +430,11 @@ bool measure(int directionlook) {
 }
 
 void navigate(){
+  //Serial.println(currentInstructionCode);
   turn(turnAngleToTarget,0);
   forward(distance,1);
   if(currentInstructionCode == 2){
-    robotState = HALT;
+    changeState(HALT);
   }
 }
 
@@ -469,9 +472,8 @@ void setup()
 void loop(){
     calculateSpeed();
     constrainMotorPower();
-    //temperature();
-    //Serial.println(measure(90)); 
-updateLocation();
+
+    updateLocation();
     pidA.Compute();
     pidB.Compute();
     switch (robotState)
@@ -490,7 +492,6 @@ updateLocation();
         break;
     case CHARGING:
         setColor(255, 165, 0); // Orange color
-        //statusBattery()//avrCurrent(), charging());
         break;
     case HALT:
         afgelegdeWegTicks = 0;
@@ -498,7 +499,7 @@ updateLocation();
         resetParametersPID();
         objectCounter = 0;
         tempAngle = prevAbsOrAngle*RAD_TO_DEG;
-        currentInstructionCode++;
+        setColor(255, 0, 0);
         break;
     case OVERHEAT:
         //blinkLed(500)
