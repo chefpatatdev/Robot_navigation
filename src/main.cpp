@@ -20,9 +20,9 @@
 #define in3 10
 #define in4 9
 
-#define redPin 7
-#define greenPin 6
-#define bluePin  5
+#define redPin 5
+#define greenPin 7
+#define bluePin  6
 
 /*temperatuur sensor*/
 #define ONE_WIRE_BUS 4
@@ -48,8 +48,11 @@ double coordX = 0.0;  //huidige positie
 double coordY = 0.0;
 double targetCoordX = 1; //target positie
 double targetCoordY = 1;
-double distance = 0;
+double distanceToTarget = 0;
 double turnAngleToTarget = 0;
+
+String X;
+String Y;
 
 double dWheel = 0;// avr distance in mm
 double absOrAngle = 0; // absolute orientatie hoek
@@ -92,14 +95,14 @@ PID pidB(&wheelBSpeed, &motorPowerB, &setpointB, KpB, KiB, KdB, DIRECT);
 
 enum robotStates
 {
-    IDLE,
+    IDLING,
     NAVIGATING,
     LOW_BATTERY,
     CHARGING,
     HALT,
     OVERHEAT,
 };
-robotStates robotState = IDLE;
+robotStates robotState = IDLING;
 
 void changeState(robotStates newState)
 {
@@ -432,7 +435,7 @@ bool measure(int directionlook) {
 void navigate(){
   //Serial.println(currentInstructionCode);
   turn(turnAngleToTarget,0);
-  forward(distance,1);
+  forward(distanceToTarget,1);
   if(currentInstructionCode == 2){
     changeState(HALT);
   }
@@ -472,30 +475,38 @@ void setup()
 void loop(){
     calculateSpeed();
     constrainMotorPower();
-
+    //Serial.println(robotState);
     updateLocation();
     pidA.Compute();
     pidB.Compute();
     switch (robotState)
     {
-    case IDLE:
+    case IDLING:
+
+        setColor(255,0,255);
         Serial.println("Enter x-coord.");
-        while (Serial.available() == 0) {}
-        String X = Serial.readStringUntil('\n');
-        targetCoordX = X.toFloat();
+        while(Serial.available()==0);
+        X = Serial.readStringUntil('\n');
+        targetCoordX = X.toDouble();
 
 
         Serial.println("Enter y-coord.");
-        while (Serial.available() == 0) {}
-        String Y = Serial.readStringUntil('\n');
-        targetCoordY = Y.toFloat();
+        while(Serial.available()==0);
+        Y = Serial.readStringUntil('\n');
+        targetCoordY = Y.toDouble();
+        //Serial.println(targetCoordX);
+      //Serial.println(targetCoordY);
 
 
-      robotState = NAVIGATING;
-      distance = sqrt((targetCoordX-coordX)*(targetCoordX-coordX)+(targetCoordY-coordY)*(targetCoordY-coordY));
+      changeState(NAVIGATING);
+      distanceToTarget = sqrt((targetCoordX-coordX)*(targetCoordX-coordX)+(targetCoordY-coordY)*(targetCoordY-coordY));
       turnAngleToTarget = atan2(targetCoordY - coordY, targetCoordX - coordX)*RAD_TO_DEG;
+      Serial.println(distanceToTarget);
+      Serial.println(turnAngleToTarget);
         break;
     case NAVIGATING:
+        Serial.println("jghjhg");
+        Serial.println(robotState);
         setColor(255,0,0);
         navigate();
         break;
@@ -506,12 +517,14 @@ void loop(){
         setColor(255, 165, 0); // Orange color
         break;
     case HALT:
+        setColor(255, 0, 0);
         afgelegdeWegTicks = 0;
         resetSetPoints();
         resetParametersPID();
         objectCounter = 0;
         tempAngle = prevAbsOrAngle*RAD_TO_DEG;
-        setColor(255, 0, 0);
+        changeState(IDLING);
+        currentInstructionCode =0; //2DE KEER LEZEN GAAT NIET EN NAAR VERKEERDE COORDINATEN
         break;
     case OVERHEAT:
         //blinkLed(500)
