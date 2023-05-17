@@ -479,6 +479,18 @@ void loop(){
     switch (robotState)
     {
     case IDLE:
+        Serial.println("Enter x-coord.");
+        while (Serial.available() == 0) {}
+        String X = Serial.readStringUntil('\n');
+        targetCoordX = X.toFloat();
+
+
+        Serial.println("Enter y-coord.");
+        while (Serial.available() == 0) {}
+        String Y = Serial.readStringUntil('\n');
+        targetCoordY = Y.toFloat();
+
+
       robotState = NAVIGATING;
       distance = sqrt((targetCoordX-coordX)*(targetCoordX-coordX)+(targetCoordY-coordY)*(targetCoordY-coordY));
       turnAngleToTarget = atan2(targetCoordY - coordY, targetCoordX - coordX)*RAD_TO_DEG;
