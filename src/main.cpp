@@ -77,7 +77,7 @@ boolean directionA; // the rotation direction
 unsigned long previousMillis = 0;
 unsigned long previousMillisForward = 0;
 unsigned long previousMillisLidar = 0;
-
+unsigned long previousMillisNavigation = 0;
 
 
 double motorPowerA = 0; // Power supplied to the motor PWM value.
@@ -184,7 +184,6 @@ if(currentInstructionCode == instructionCode){
         afgelegdeWegTicks = 0;
         resetSetPoints();
         resetParametersPID();
-        objectCounter = 0;
         tempAngle = prevAbsOrAngle*RAD_TO_DEG;
         currentInstructionCode++;
     }
@@ -383,6 +382,11 @@ bool charging() {
     return false;
 }
 
+void calculateNavigation(){
+    distanceToTarget = sqrt((targetCoordX-coordX)*(targetCoordX-coordX)+(targetCoordY-coordY)*(targetCoordY-coordY));
+    turnAngleToTarget = atan2(targetCoordY - coordY, targetCoordX - coordX)*RAD_TO_DEG;
+    currentInstructionCode =0;
+}
 
 void temperature() {
     sensors.requestTemperatures();
@@ -438,9 +442,6 @@ void navigate(){
   //Serial.println(currentInstructionCode);
   turn(turnAngleToTarget,0);
   forward(distanceToTarget,1);
-  if(currentInstructionCode == 2){
-    changeState(HALT);
-  }
 }
 
 
@@ -481,11 +482,10 @@ void loop(){
     updateLocation();
     pidA.Compute();
     pidB.Compute();
-    switch (robotState)
+    if (robotState == IDLING)
     {
-    case IDLING:
 
-        setColor(255,0,255);
+        setColor(0,255,0);
         Serial.println("Enter x-coord.");
         while(Serial.available()==0);
         X = Serial.readStringUntil('\n');
@@ -499,33 +499,46 @@ void loop(){
         //Serial.println(targetCoordX);
       //Serial.println(targetCoordY);
 
-
+      calculateNavigation();
       changeState(NAVIGATING);
-      distanceToTarget = sqrt((targetCoordX-coordX)*(targetCoordX-coordX)+(targetCoordY-coordY)*(targetCoordY-coordY));
-      turnAngleToTarget = atan2(targetCoordY - coordY, targetCoordX - coordX)*RAD_TO_DEG;
+
       Serial.print(distanceToTarget);
       Serial.print(" , ");
       Serial.println(turnAngleToTarget);
-        break;
-    case NAVIGATING:
-
+    }else if(robotState == NAVIGATING){
+    
         setColor(255,0,0);
         navigate();
-        break;
-    case LOW_BATTERY:
-        //setColor(255, 0, 0); // Red Color
-        break;
-    case CHARGING:
-        setColor(255, 165, 0); // Orange color
-        break;
-    case HALT:
-        setColor(255, 0, 0);
+    unsigned long currentMillis = millis();
+    if(currentMillis - previousMillisNavigation >= 1000){
+        previousMillisNavigation = currentMillis;
+        afgelegdeWegTicks = 0;
+        resetSetPoints();
+        resetParametersPID();
+        
+        tempAngle = prevAbsOrAngle*RAD_TO_DEG;
+        if(distanceToTarget > 0.05){
+          calculateNavigation();
+      //Serial.println(distanceToTarget);
+      //Serial.print(" , ");
+      //Serial.println(turnAngleToTarget);
+        }else{
+          changeState(HALT);
+        }
+    }
+
+
+
+    }else if(robotState == HALT){
+        setColor(0, 0, 255);
+        afgelegdeWegTicks = 0;
+        resetSetPoints();
+        resetParametersPID();
+        tempAngle = prevAbsOrAngle*RAD_TO_DEG;
         changeState(IDLING);
         currentInstructionCode =0; //2DE KEER LEZEN GAAT NIET EN NAAR VERKEERDE COORDINATEN
-        break;
-    case OVERHEAT:
-        //blinkLed(500)
-        break;
+    }else{
+      setColor(255, 255, 255);
     }
  
     driveMotors();
