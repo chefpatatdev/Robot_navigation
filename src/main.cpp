@@ -31,7 +31,7 @@ DallasTemperature sensors(&oneWire);
 
 RPLidar lidar;
 #define cone 15
-#define savedistance 50
+#define savedistance 20
 float minDistance = 100000;
 float angleAtMinDist = 0;
 int objectCounter = 0;
