@@ -99,17 +99,30 @@ double afgelegdeWegTicks = 0; // distance covered in pulses
 PID pidA(&wheelASpeed, &motorPowerA, &setpointA, KpA, KiA, KdA, DIRECT);
 PID pidB(&wheelBSpeed, &motorPowerB, &setpointB, KpB, KiB, KdB, DIRECT);
 
-enum robotStates
-{
-    IDLING,
-    NAVIGATING,
-    LOW_BATTERY,
-    CHARGING,
-    HALT,
-    OVERHEAT,
-    OBJECT_DETECTED,
-};
+    enum robotStates
+    {
+        IDLING,
+        NAVIGATING,
+        LOW_BATTERY,
+        CHARGING,
+        HALT,
+        OVERHEAT,
+        OBJECT_DETECTED,
+    };
+
 robotStates robotState = IDLING;
+
+    enum instruction
+    {
+    FW_1,
+    TURN_2,
+    FW_3,
+    TURN_4,
+    FW_5,
+    TURN_6,
+    FW_7,
+    STOP
+    };
 
 void changeState(robotStates newState)
 {
@@ -342,7 +355,7 @@ void updateLocation()
         Serial.print(" , ");
         Serial.println(prevAbsOrAngle * RAD_TO_DEG);
 
-        double distancePerTick = 0.109; // mm
+        double distancePerTick = 0.109; // mm, hoger dan experimenteel bepaalde waarde 
         double pivotDiam = 200;         // mm
 
         dWheel = (wheelASpeed * distancePerTick + wheelBSpeed * distancePerTick) / 2;
