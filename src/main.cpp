@@ -152,7 +152,7 @@ void forward(double distance, int instructionCode) // distance to cover in meter
     {
         unsigned long currentMillis = millis();
 
-        if (afgelegdeWegTicks < abs(distance) * 9180)
+        if (afgelegdeWegTicks < abs(distance) * 9351)
         {
             if (distance > 0)
             {
